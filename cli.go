@@ -10,7 +10,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/lipgloss/table"
-	"github.com/picosh/pico/db"
+	"github.com/picosh/pgs/db"
 	sst "github.com/picosh/pobj/storage"
 	"github.com/picosh/utils"
 )
@@ -194,16 +194,16 @@ func (c *Cmd) RmProjectAssets(projectName string) error {
 }
 
 func (c *Cmd) help() {
-	c.output(getHelpText(c.Styles, c.User.Name, c.Width))
+	c.output(getHelpText(c.User.Name, c.Width))
 }
 
 func (c *Cmd) statsByProject(_ string) error {
 	msg := fmt.Sprintf(
 		"%s\n\nRun %s to access pico's analytics TUI",
-		c.Styles.Logo.Render("DEPRECATED"),
-		c.Styles.Code.Render("ssh pico.sh"),
+		"DEPRECATED",
+		"ssh pico.sh",
 	)
-	c.output(c.Styles.RoundedBorder.Render(msg))
+	c.output(lipgloss.RoundedBorder.Render(msg))
 	return nil
 }
 

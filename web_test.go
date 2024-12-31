@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/picosh/pgs/db"
+	"github.com/picosh/pgs/db/stub"
 	"github.com/picosh/pgs/storage"
-	"github.com/picosh/pico/db"
-	"github.com/picosh/pico/db/stub"
 	sst "github.com/picosh/pobj/storage"
 )
 

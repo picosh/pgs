@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/ssh"
-	"github.com/picosh/pico/db"
+	"github.com/picosh/pgs/db"
 )
 
 type TunnelWebRouter struct {

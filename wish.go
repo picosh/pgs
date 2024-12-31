@@ -10,7 +10,7 @@ import (
 	"github.com/charmbracelet/wish"
 	bm "github.com/charmbracelet/wish/bubbletea"
 	"github.com/muesli/termenv"
-	"github.com/picosh/pico/db"
+	"github.com/picosh/pgs/db"
 	sendutils "github.com/picosh/send/utils"
 	"github.com/picosh/utils"
 )

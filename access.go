@@ -3,7 +3,7 @@ package pgs
 import (
 	"slices"
 
-	"github.com/picosh/pico/db"
+	"github.com/picosh/pgs/db"
 	"golang.org/x/crypto/ssh"
 )
 

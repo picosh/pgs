@@ -19,9 +19,8 @@ import (
 	"github.com/darkweak/souin/plugins/souin/storages"
 	"github.com/darkweak/storages/core"
 	"github.com/gorilla/feeds"
+	"github.com/picosh/pgs/db"
 	"github.com/picosh/pgs/storage"
-	"github.com/picosh/pico/db"
-	"github.com/picosh/pico/db/postgres"
 	sst "github.com/picosh/pobj/storage"
 	"google.golang.org/protobuf/proto"
 )
@@ -39,73 +38,6 @@ func (c *CachedHttp) ServeHTTP(writer http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		c.routes.Logger.Error("serve http", "err", err)
 	}
-}
-
-func StartApiServer() {
-	ctx := context.Background()
-	cfg := NewConfigSite()
-	logger := cfg.Logger
-
-	dbpool := postgres.NewDB(cfg.DbURL, cfg.Logger)
-	defer dbpool.Close()
-
-	var st storage.StorageServe
-	var err error
-	if cfg.MinioURL == "" {
-		st, err = storage.NewStorageFS(cfg.StorageDir)
-	} else {
-		st, err = storage.NewStorageMinio(cfg.MinioURL, cfg.MinioUser, cfg.MinioPass)
-	}
-
-	if err != nil {
-		logger.Error("could not connect to object storage", "err", err.Error())
-		return
-	}
-	ttl := configurationtypes.Duration{Duration: cfg.CacheTTL}
-	stale := configurationtypes.Duration{Duration: cfg.CacheTTL * 2}
-	c := &middleware.BaseConfiguration{
-		API: configurationtypes.API{
-			Prometheus: configurationtypes.APIEndpoint{
-				Enable: true,
-			},
-		},
-		DefaultCache: &configurationtypes.DefaultCache{
-			TTL:   ttl,
-			Stale: stale,
-			Otter: configurationtypes.CacheProvider{
-				Uuid:          fmt.Sprintf("OTTER-%s", stale),
-				Configuration: map[string]interface{}{},
-			},
-			Regex: configurationtypes.Regex{
-				Exclude: "/check",
-			},
-			MaxBodyBytes:        uint64(cfg.MaxAssetSize),
-			DefaultCacheControl: cfg.CacheControl,
-		},
-		LogLevel: "debug",
-	}
-	c.SetLogger(&CompatLogger{logger})
-	storages.InitFromConfiguration(c)
-	httpCache := middleware.NewHTTPCacheHandler(c)
-	routes := NewWebRouter(cfg, logger, dbpool, st)
-	cacher := &CachedHttp{
-		handler: httpCache,
-		routes:  routes,
-	}
-
-	go routes.cacheMgmt(ctx, httpCache)
-
-	portStr := fmt.Sprintf(":%s", cfg.Port)
-	logger.Info(
-		"starting server on port",
-		"port", cfg.Port,
-		"domain", cfg.Domain,
-	)
-	err = http.ListenAndServe(portStr, cacher)
-	logger.Error(
-		"listen and serve",
-		"err", err.Error(),
-	)
 }
 
 type HasPerm = func(proj *db.Project) bool

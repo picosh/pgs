@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/picosh/pgs/storage"
-	"github.com/picosh/send/utils"
+	sendUtils "github.com/picosh/send/utils"
 	"github.com/picosh/utils"
 	"github.com/picosh/utils/pipe"
 	pipeLogger "github.com/picosh/utils/pipe/log"
