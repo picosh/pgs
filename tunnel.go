@@ -7,7 +7,6 @@ import (
 
 	"github.com/charmbracelet/ssh"
 	"github.com/picosh/pico/db"
-	"github.com/picosh/pico/shared"
 )
 
 type TunnelWebRouter struct {
@@ -26,9 +25,11 @@ func (web *TunnelWebRouter) Perm(proj *db.Project) bool {
 	return true
 }
 
+type CtxSubdomainKey struct{}
+
 func (web *TunnelWebRouter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	ctx = context.WithValue(ctx, shared.CtxSubdomainKey{}, web.subdomain)
+	ctx = context.WithValue(ctx, CtxSubdomainKey{}, web.subdomain)
 	web.UserRouter.ServeHTTP(w, r.WithContext(ctx))
 }
 
@@ -43,7 +44,11 @@ func getInfoFromUser(user string) (string, string) {
 	return "", user
 }
 
-func createHttpHandler(apiConfig *shared.ApiConfig) CtxHttpBridge {
+func UnauthorizedHandler(w http.ResponseWriter, r *http.Request) {
+	http.Error(w, "You do not have access to this site", http.StatusUnauthorized)
+}
+
+func createHttpHandler(apiConfig *ApiConfig) CtxHttpBridge {
 	return func(ctx ssh.Context) http.Handler {
 		dbh := apiConfig.Dbpool
 		logger := apiConfig.Cfg.Logger
@@ -56,17 +61,17 @@ func createHttpHandler(apiConfig *shared.ApiConfig) CtxHttpBridge {
 		pubkey := ctx.Permissions().Extensions["pubkey"]
 		if pubkey == "" {
 			log.Error("pubkey not found in extensions", "subdomain", subdomain)
-			return http.HandlerFunc(shared.UnauthorizedHandler)
+			return http.HandlerFunc(UnauthorizedHandler)
 		}
 
 		log = log.With(
 			"pubkey", pubkey,
 		)
 
-		props, err := shared.GetProjectFromSubdomain(subdomain)
+		props, err := GetProjectFromSubdomain(subdomain)
 		if err != nil {
 			log.Error("could not get project from subdomain", "err", err.Error())
-			return http.HandlerFunc(shared.UnauthorizedHandler)
+			return http.HandlerFunc(UnauthorizedHandler)
 		}
 
 		owner, err := dbh.FindUserForName(props.Username)
@@ -76,7 +81,7 @@ func createHttpHandler(apiConfig *shared.ApiConfig) CtxHttpBridge {
 				"name", props.Username,
 				"err", err.Error(),
 			)
-			return http.HandlerFunc(shared.UnauthorizedHandler)
+			return http.HandlerFunc(UnauthorizedHandler)
 		}
 		log = log.With(
 			"owner", owner.Name,
@@ -85,7 +90,7 @@ func createHttpHandler(apiConfig *shared.ApiConfig) CtxHttpBridge {
 		project, err := dbh.FindProjectByName(owner.ID, props.ProjectName)
 		if err != nil {
 			log.Error("could not get project by name", "project", props.ProjectName, "err", err.Error())
-			return http.HandlerFunc(shared.UnauthorizedHandler)
+			return http.HandlerFunc(UnauthorizedHandler)
 		}
 
 		requester, _ := dbh.FindUserForKey("", pubkey)
@@ -100,7 +105,7 @@ func createHttpHandler(apiConfig *shared.ApiConfig) CtxHttpBridge {
 			isAdmin := dbh.HasFeatureForUser(requester.ID, "admin")
 			if !isAdmin {
 				log.Error("impersonation attempt failed")
-				return http.HandlerFunc(shared.UnauthorizedHandler)
+				return http.HandlerFunc(UnauthorizedHandler)
 			}
 			requester, _ = dbh.FindUserForName(asUser)
 		}
@@ -109,11 +114,11 @@ func createHttpHandler(apiConfig *shared.ApiConfig) CtxHttpBridge {
 		publicKey, _, _, _, err := ssh.ParseAuthorizedKey([]byte(pubkey))
 		if err != nil {
 			log.Error("could not parse public key", "pubkey", pubkey, "err", err)
-			return http.HandlerFunc(shared.UnauthorizedHandler)
+			return http.HandlerFunc(UnauthorizedHandler)
 		}
 		if !HasProjectAccess(project, owner, requester, publicKey) {
 			log.Error("no access")
-			return http.HandlerFunc(shared.UnauthorizedHandler)
+			return http.HandlerFunc(UnauthorizedHandler)
 		}
 
 		log.Info("user has access to site")

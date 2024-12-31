@@ -2,11 +2,37 @@ package pgs
 
 import (
 	"fmt"
+	"log/slog"
 	"time"
 
-	"github.com/picosh/pico/shared"
 	"github.com/picosh/utils"
 )
+
+type ConfigSite struct {
+	Debug              bool
+	SendgridKey        string
+	Domain             string
+	Port               string
+	PortOverride       string
+	Protocol           string
+	DbURL              string
+	StorageDir         string
+	CacheTTL           time.Duration
+	CacheControl       string
+	MinioURL           string
+	MinioUser          string
+	MinioPass          string
+	Space              string
+	Issuer             string
+	Secret             string
+	SecretWebhook      string
+	AllowedExt         []string
+	HiddenPosts        []string
+	MaxSize            uint64
+	MaxAssetSize       int64
+	MaxSpecialFileSize int64
+	Logger             *slog.Logger
+}
 
 var maxSize = uint64(25 * utils.MB)
 var maxAssetSize = int64(10 * utils.MB)
@@ -14,7 +40,7 @@ var maxAssetSize = int64(10 * utils.MB)
 // Needs to be small for caching files like _headers and _redirects.
 var maxSpecialFileSize = int64(5 * utils.KB)
 
-func NewConfigSite() *shared.ConfigSite {
+func NewConfigSite() *ConfigSite {
 	domain := utils.GetEnv("PGS_DOMAIN", "pgs.sh")
 	port := utils.GetEnv("PGS_WEB_PORT", "3000")
 	protocol := utils.GetEnv("PGS_PROTOCOL", "https")
@@ -31,7 +57,7 @@ func NewConfigSite() *shared.ConfigSite {
 	minioPass := utils.GetEnv("MINIO_ROOT_PASSWORD", "")
 	dbURL := utils.GetEnv("DATABASE_URL", "")
 
-	cfg := shared.ConfigSite{
+	cfg := ConfigSite{
 		Domain:             domain,
 		Port:               port,
 		Protocol:           protocol,

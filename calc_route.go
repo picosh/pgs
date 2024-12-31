@@ -8,8 +8,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/picosh/pico/shared"
-	"github.com/picosh/pico/shared/storage"
+	"github.com/picosh/pgs/storage"
 	"github.com/picosh/send/utils"
 )
 
@@ -39,7 +38,7 @@ func expandRoute(projectName, fp string, status int) []*HttpReply {
 
 	// we know it's a directory so send the index.html for it
 	if strings.HasSuffix(fp, "/") {
-		dirRoute := shared.GetAssetFileName(&utils.FileEntry{
+		dirRoute := GetAssetFileName(&utils.FileEntry{
 			Filepath: filepath.Join(projectName, fp, "index.html"),
 		})
 
@@ -53,7 +52,7 @@ func expandRoute(projectName, fp string, status int) []*HttpReply {
 		}
 
 		// pretty urls where we just append .html to base of fp
-		nameRoute := shared.GetAssetFileName(&utils.FileEntry{
+		nameRoute := GetAssetFileName(&utils.FileEntry{
 			Filepath: filepath.Join(
 				projectName,
 				fdir,
@@ -188,7 +187,7 @@ func calcRoutes(projectName, fp string, userRedirects []*RedirectRule) []*HttpRe
 	rts := []*HttpReply{}
 	// add route as-is without expansion
 	if fp != "" && !strings.HasSuffix(fp, "/") {
-		defRoute := shared.GetAssetFileName(&utils.FileEntry{
+		defRoute := GetAssetFileName(&utils.FileEntry{
 			Filepath: filepath.Join(projectName, fp),
 		})
 		rts = append(rts, &HttpReply{Filepath: defRoute, Status: http.StatusOK})
@@ -264,7 +263,7 @@ func calcRoutes(projectName, fp string, userRedirects []*RedirectRule) []*HttpRe
 	// we can't check for file extention because route could have a dot
 	// and ext parsing gets confused
 	if fp != "" && !strings.HasSuffix(fp, "/") {
-		redirectRoute := shared.GetAssetFileName(&utils.FileEntry{
+		redirectRoute := GetAssetFileName(&utils.FileEntry{
 			Filepath: fp + "/",
 		})
 		rts = append(

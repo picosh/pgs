@@ -18,7 +18,6 @@ import (
 	"github.com/charmbracelet/ssh"
 	"github.com/charmbracelet/wish"
 	"github.com/picosh/pico/db"
-	"github.com/picosh/pico/shared"
 	"github.com/picosh/pobj"
 	sst "github.com/picosh/pobj/storage"
 	sendutils "github.com/picosh/send/utils"
@@ -100,12 +99,12 @@ type FileData struct {
 
 type UploadAssetHandler struct {
 	DBPool             db.DB
-	Cfg                *shared.ConfigSite
+	Cfg                *ConfigSite
 	Storage            sst.ObjectStorage
 	CacheClearingQueue chan string
 }
 
-func NewUploadAssetHandler(dbpool db.DB, cfg *shared.ConfigSite, storage sst.ObjectStorage, ctx context.Context) *UploadAssetHandler {
+func NewUploadAssetHandler(dbpool db.DB, cfg *ConfigSite, storage sst.ObjectStorage, ctx context.Context) *UploadAssetHandler {
 	// Enable buffering so we don't slow down uploads.
 	ch := make(chan string, 100)
 	go runCacheQueue(cfg, ctx, ch)
@@ -134,12 +133,12 @@ func (h *UploadAssetHandler) Read(s ssh.Session, entry *sendutils.FileEntry) (os
 		FModTime: time.Unix(entry.Mtime, 0),
 	}
 
-	bucket, err := h.Storage.GetBucket(shared.GetAssetBucketName(user.ID))
+	bucket, err := h.Storage.GetBucket(GetAssetBucketName(user.ID))
 	if err != nil {
 		return nil, nil, err
 	}
 
-	fname := shared.GetAssetFileName(entry)
+	fname := GetAssetFileName(entry)
 	contents, info, err := h.Storage.GetObject(bucket, fname)
 	if err != nil {
 		return nil, nil, err
@@ -163,7 +162,7 @@ func (h *UploadAssetHandler) List(s ssh.Session, fpath string, isDir bool, recur
 
 	cleanFilename := fpath
 
-	bucketName := shared.GetAssetBucketName(user.ID)
+	bucketName := GetAssetBucketName(user.ID)
 	bucket, err := h.Storage.GetBucket(bucketName)
 	if err != nil {
 		return fileList, err
@@ -203,7 +202,7 @@ func (h *UploadAssetHandler) Validate(s ssh.Session) error {
 		return err
 	}
 
-	assetBucket := shared.GetAssetBucketName(user.ID)
+	assetBucket := GetAssetBucketName(user.ID)
 	bucket, err := h.Storage.UpsertBucket(assetBucket)
 	if err != nil {
 		return err
@@ -260,7 +259,7 @@ func (h *UploadAssetHandler) Write(s ssh.Session, entry *sendutils.FileEntry) (s
 	}
 
 	logger := h.GetLogger()
-	logger = shared.LoggerWithUser(logger, user)
+	logger = LoggerWithUser(logger, user)
 	logger = logger.With(
 		"file", entry.Filepath,
 		"size", entry.Size,
@@ -273,7 +272,7 @@ func (h *UploadAssetHandler) Write(s ssh.Session, entry *sendutils.FileEntry) (s
 	}
 
 	project := getProject(s)
-	projectName := shared.GetProjectName(entry)
+	projectName := GetProjectName(entry)
 	logger = logger.With("project", projectName)
 
 	// find, create, or update project if we haven't already done it
@@ -308,17 +307,17 @@ func (h *UploadAssetHandler) Write(s ssh.Session, entry *sendutils.FileEntry) (s
 	if entry.Mode.IsDir() {
 		_, _, err := h.Storage.PutObject(
 			bucket,
-			path.Join(shared.GetAssetFileName(entry), "._pico_keep_dir"),
+			path.Join(GetAssetFileName(entry), "._pico_keep_dir"),
 			bytes.NewReader([]byte{}),
 			entry,
 		)
 		return "", err
 	}
 
-	featureFlag := shared.FindPlusFF(h.DBPool, h.Cfg, user.ID)
+	featureFlag := FindPlusFF(h.DBPool, h.Cfg, user.ID)
 	// calculate the filsize difference between the same file already
 	// stored and the updated file being uploaded
-	assetFilename := shared.GetAssetFileName(entry)
+	assetFilename := GetAssetFileName(entry)
 	_, info, _ := h.Storage.GetObject(bucket, assetFilename)
 	var curFileSize int64
 	if info != nil {
@@ -431,10 +430,10 @@ func (h *UploadAssetHandler) Delete(s ssh.Session, entry *sendutils.FileEntry) e
 		entry.Filepath = strings.TrimPrefix(entry.Filepath, "/")
 	}
 
-	assetFilepath := shared.GetAssetFileName(entry)
+	assetFilepath := GetAssetFileName(entry)
 
 	logger := h.GetLogger()
-	logger = shared.LoggerWithUser(logger, user)
+	logger = LoggerWithUser(logger, user)
 	logger = logger.With(
 		"file", assetFilepath,
 	)
@@ -445,7 +444,7 @@ func (h *UploadAssetHandler) Delete(s ssh.Session, entry *sendutils.FileEntry) e
 		return err
 	}
 
-	projectName := shared.GetProjectName(entry)
+	projectName := GetProjectName(entry)
 	logger = logger.With("project", projectName)
 
 	if assetFilepath == filepath.Join("/", projectName, "._pico_keep_dir") {
@@ -488,7 +487,7 @@ func (h *UploadAssetHandler) Delete(s ssh.Session, entry *sendutils.FileEntry) e
 func (h *UploadAssetHandler) validateAsset(data *FileData) (bool, error) {
 	fname := filepath.Base(data.Filepath)
 
-	projectName := shared.GetProjectName(data.FileEntry)
+	projectName := GetProjectName(data.FileEntry)
 	if projectName == "" || projectName == "/" || projectName == "." {
 		return false, fmt.Errorf("ERROR: invalid project name, you must copy files to a non-root folder (e.g. pgs.sh:/project-name)")
 	}
@@ -511,9 +510,9 @@ func (h *UploadAssetHandler) validateAsset(data *FileData) (bool, error) {
 }
 
 func (h *UploadAssetHandler) writeAsset(reader io.Reader, data *FileData) (int64, error) {
-	assetFilepath := shared.GetAssetFileName(data.FileEntry)
+	assetFilepath := GetAssetFileName(data.FileEntry)
 
-	logger := shared.LoggerWithUser(h.Cfg.Logger, data.User)
+	logger := LoggerWithUser(h.Cfg.Logger, data.User)
 	logger.Info(
 		"uploading file to bucket",
 		"bucket", data.Bucket.Name,
@@ -533,7 +532,7 @@ func (h *UploadAssetHandler) writeAsset(reader io.Reader, data *FileData) (int64
 // One message arrives per file that is written/deleted during uploads.
 // Repeated messages for the same site are grouped so that we only flush once
 // per site per 5 seconds.
-func runCacheQueue(cfg *shared.ConfigSite, ctx context.Context, ch chan string) {
+func runCacheQueue(cfg *ConfigSite, ctx context.Context, ch chan string) {
 	send := createPubCacheDrain(ctx, cfg.Logger)
 	var pendingFlushes sync.Map
 	tick := time.Tick(5 * time.Second)

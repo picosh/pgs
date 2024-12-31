@@ -19,10 +19,9 @@ import (
 	"github.com/darkweak/souin/plugins/souin/storages"
 	"github.com/darkweak/storages/core"
 	"github.com/gorilla/feeds"
+	"github.com/picosh/pgs/storage"
 	"github.com/picosh/pico/db"
 	"github.com/picosh/pico/db/postgres"
-	"github.com/picosh/pico/shared"
-	"github.com/picosh/pico/shared/storage"
 	sst "github.com/picosh/pobj/storage"
 	"google.golang.org/protobuf/proto"
 )
@@ -112,7 +111,7 @@ func StartApiServer() {
 type HasPerm = func(proj *db.Project) bool
 
 type WebRouter struct {
-	Cfg        *shared.ConfigSite
+	Cfg        *ConfigSite
 	Logger     *slog.Logger
 	Dbpool     db.DB
 	Storage    storage.StorageServe
@@ -120,7 +119,7 @@ type WebRouter struct {
 	UserRouter *http.ServeMux
 }
 
-func NewWebRouter(cfg *shared.ConfigSite, logger *slog.Logger, dbpool db.DB, st storage.StorageServe) *WebRouter {
+func NewWebRouter(cfg *ConfigSite, logger *slog.Logger, dbpool db.DB, st storage.StorageServe) *WebRouter {
 	router := &WebRouter{
 		Cfg:     cfg,
 		Logger:  logger,

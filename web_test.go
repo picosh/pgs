@@ -10,10 +10,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/picosh/pgs/storage"
 	"github.com/picosh/pico/db"
 	"github.com/picosh/pico/db/stub"
-	"github.com/picosh/pico/shared"
-	"github.com/picosh/pico/shared/storage"
 	sst "github.com/picosh/pobj/storage"
 )
 
@@ -83,7 +82,7 @@ func mkpath(path string) string {
 }
 
 func TestApiBasic(t *testing.T) {
-	bucketName := shared.GetAssetBucketName(testUserID)
+	bucketName := GetAssetBucketName(testUserID)
 	cfg := NewConfigSite()
 	cfg.Domain = "pgs.test"
 	tt := []*ApiExample{
@@ -374,7 +373,7 @@ func (s *ImageStorageMemory) ServeObject(bucket sst.Bucket, fpath string, opts *
 }
 
 func TestImageManipulation(t *testing.T) {
-	bucketName := shared.GetAssetBucketName(testUserID)
+	bucketName := GetAssetBucketName(testUserID)
 	cfg := NewConfigSite()
 	cfg.Domain = "pgs.test"
 

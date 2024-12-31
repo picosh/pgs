@@ -11,13 +11,11 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/lipgloss/table"
 	"github.com/picosh/pico/db"
-	"github.com/picosh/pico/shared"
-	"github.com/picosh/pico/tui/common"
 	sst "github.com/picosh/pobj/storage"
 	"github.com/picosh/utils"
 )
 
-func projectTable(styles common.Styles, projects []*db.Project, width int) *table.Table {
+func projectTable(projects []*db.Project, width int) *table.Table {
 	headers := []string{
 		"Name",
 		"Last Updated",
@@ -52,9 +50,9 @@ func projectTable(styles common.Styles, projects []*db.Project, width int) *tabl
 	return t
 }
 
-func getHelpText(styles common.Styles, userName string, width int) string {
+func getHelpText(userName string, width int) string {
 	helpStr := "Commands: [help, stats, ls, rm, link, unlink, prune, retain, depends, acl, cache]\n"
-	helpStr += styles.Note.Render("NOTICE:") + " *must* append with `--write` for the changes to persist.\n"
+	helpStr += "NOTICE: *must* append with `--write` for the changes to persist.\n"
 
 	projectName := "projA"
 	headers := []string{"Cmd", "Description"}
@@ -122,10 +120,9 @@ type Cmd struct {
 	Store   sst.ObjectStorage
 	Dbpool  db.DB
 	Write   bool
-	Styles  common.Styles
 	Width   int
 	Height  int
-	Cfg     *shared.ConfigSite
+	Cfg     *ConfigSite
 }
 
 func (c *Cmd) output(out string) {
@@ -153,7 +150,7 @@ func (c *Cmd) notice() {
 }
 
 func (c *Cmd) RmProjectAssets(projectName string) error {
-	bucketName := shared.GetAssetBucketName(c.User.ID)
+	bucketName := GetAssetBucketName(c.User.ID)
 	bucket, err := c.Store.GetBucket(bucketName)
 	if err != nil {
 		return err
@@ -219,7 +216,7 @@ func (c *Cmd) stats(cfgMaxSize uint64) error {
 	ff.Data.StorageMax = ff.FindStorageMax(cfgMaxSize)
 	storageMax := ff.Data.StorageMax
 
-	bucketName := shared.GetAssetBucketName(c.User.ID)
+	bucketName := GetAssetBucketName(c.User.ID)
 	bucket, err := c.Store.UpsertBucket(bucketName)
 	if err != nil {
 		return err

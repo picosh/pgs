@@ -14,7 +14,7 @@ import (
 	"net/http/httputil"
 	_ "net/http/pprof"
 
-	"github.com/picosh/pico/shared/storage"
+	"github.com/picosh/pgs/storage"
 	sst "github.com/picosh/pobj/storage"
 )
 
