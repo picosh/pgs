@@ -34,6 +34,27 @@ type ConfigSite struct {
 	Logger             *slog.Logger
 }
 
+func (c *ConfigSite) AssetURL(username, projectName, fpath string) string {
+	if username == projectName {
+		return fmt.Sprintf(
+			"%s://%s.%s/%s",
+			c.Protocol,
+			username,
+			c.Domain,
+			fpath,
+		)
+	}
+
+	return fmt.Sprintf(
+		"%s://%s-%s.%s/%s",
+		c.Protocol,
+		username,
+		projectName,
+		c.Domain,
+		fpath,
+	)
+}
+
 var maxSize = uint64(25 * utils.MB)
 var maxAssetSize = int64(10 * utils.MB)
 
@@ -72,7 +93,7 @@ func NewConfigSite() *ConfigSite {
 		MaxSize:            maxSize,
 		MaxAssetSize:       maxAssetSize,
 		MaxSpecialFileSize: maxSpecialFileSize,
-		Logger:             shared.CreateLogger("pgs"),
+		Logger:             CreateLogger("pgs"),
 	}
 
 	return &cfg

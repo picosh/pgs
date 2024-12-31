@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -14,9 +15,7 @@ import (
 
 	_ "net/http/pprof"
 
-	"github.com/darkweak/souin/configurationtypes"
 	"github.com/darkweak/souin/pkg/middleware"
-	"github.com/darkweak/souin/plugins/souin/storages"
 	"github.com/darkweak/storages/core"
 	"github.com/gorilla/feeds"
 	"github.com/picosh/pgs/db"
@@ -24,6 +23,24 @@ import (
 	sst "github.com/picosh/pobj/storage"
 	"google.golang.org/protobuf/proto"
 )
+
+func GetSubdomain(r *http.Request) string {
+	return r.Context().Value(CtxSubdomainKey{}).(string)
+}
+
+func GetCustomDomain(host string, space string) string {
+	txt := fmt.Sprintf("_%s.%s", space, host)
+	records, err := net.LookupTXT(txt)
+	if err != nil {
+		return ""
+	}
+
+	for _, v := range records {
+		return strings.TrimSpace(v)
+	}
+
+	return ""
+}
 
 type CachedHttp struct {
 	handler *middleware.SouinBaseHandler
@@ -90,9 +107,8 @@ func (web *WebRouter) initRouters() {
 func (web *WebRouter) serveFile(file string, contentType string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		logger := web.Logger
-		cfg := web.Cfg
 
-		contents, err := os.ReadFile(cfg.StaticPath(fmt.Sprintf("public/%s", file)))
+		contents, err := os.ReadFile(fmt.Sprintf("public/%s", file))
 		if err != nil {
 			logger.Error(
 				"could not read file",
@@ -119,7 +135,7 @@ func (web *WebRouter) createPageHandler(fname string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		logger := web.Logger
 		cfg := web.Cfg
-		ts, err := shared.RenderTemplate(cfg, []string{cfg.StaticPath(fname)})
+		ts, err := RenderTemplate(cfg, []string{fname})
 
 		if err != nil {
 			logger.Error(
@@ -131,10 +147,7 @@ func (web *WebRouter) createPageHandler(fname string) http.HandlerFunc {
 			return
 		}
 
-		data := shared.PageData{
-			Site: *cfg.GetSiteData(),
-		}
-		err = ts.Execute(w, data)
+		err = ts.Execute(w, nil)
 		if err != nil {
 			logger.Error(
 				"could not execute template",
@@ -151,50 +164,48 @@ func (web *WebRouter) checkHandler(w http.ResponseWriter, r *http.Request) {
 	cfg := web.Cfg
 	logger := web.Logger
 
-	if cfg.IsCustomdomains() {
-		hostDomain := r.URL.Query().Get("domain")
-		appDomain := strings.Split(cfg.Domain, ":")[0]
+	hostDomain := r.URL.Query().Get("domain")
+	appDomain := strings.Split(cfg.Domain, ":")[0]
 
-		if !strings.Contains(hostDomain, appDomain) {
-			subdomain := shared.GetCustomDomain(hostDomain, cfg.Space)
-			props, err := shared.GetProjectFromSubdomain(subdomain)
-			if err != nil {
-				logger.Error(
-					"could not get project from subdomain",
-					"subdomain", subdomain,
-					"err", err.Error(),
-				)
-				w.WriteHeader(http.StatusNotFound)
-				return
-			}
+	if !strings.Contains(hostDomain, appDomain) {
+		subdomain := GetCustomDomain(hostDomain, cfg.Space)
+		props, err := GetProjectFromSubdomain(subdomain)
+		if err != nil {
+			logger.Error(
+				"could not get project from subdomain",
+				"subdomain", subdomain,
+				"err", err.Error(),
+			)
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
 
-			u, err := dbpool.FindUserForName(props.Username)
-			if err != nil {
-				logger.Error("could not find user", "err", err.Error())
-				w.WriteHeader(http.StatusNotFound)
-				return
-			}
+		u, err := dbpool.FindUserForName(props.Username)
+		if err != nil {
+			logger.Error("could not find user", "err", err.Error())
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
 
-			logger = logger.With(
+		logger = logger.With(
+			"user", u.Name,
+			"project", props.ProjectName,
+		)
+		p, err := dbpool.FindProjectByName(u.ID, props.ProjectName)
+		if err != nil {
+			logger.Error(
+				"could not find project for user",
 				"user", u.Name,
 				"project", props.ProjectName,
+				"err", err.Error(),
 			)
-			p, err := dbpool.FindProjectByName(u.ID, props.ProjectName)
-			if err != nil {
-				logger.Error(
-					"could not find project for user",
-					"user", u.Name,
-					"project", props.ProjectName,
-					"err", err.Error(),
-				)
-				w.WriteHeader(http.StatusNotFound)
-				return
-			}
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
 
-			if u != nil && p != nil {
-				w.WriteHeader(http.StatusOK)
-				return
-			}
+		if u != nil && p != nil {
+			w.WriteHeader(http.StatusOK)
+			return
 		}
 	}
 
@@ -270,7 +281,7 @@ func (web *WebRouter) createRssHandler(by string) http.HandlerFunc {
 
 		feed := &feeds.Feed{
 			Title:       fmt.Sprintf("%s discovery feed %s", cfg.Domain, by),
-			Link:        &feeds.Link{Href: cfg.ReadURL()},
+			Link:        &feeds.Link{Href: "/"},
 			Description: fmt.Sprintf("%s projects %s", cfg.Domain, by),
 			Author:      &feeds.Author{Name: cfg.Domain},
 			Created:     time.Now(),
@@ -358,7 +369,7 @@ func (web *WebRouter) ImageRequest(w http.ResponseWriter, r *http.Request) {
 }
 
 func (web *WebRouter) ServeAsset(fname string, opts *storage.ImgProcessOpts, fromImgs bool, hasPerm HasPerm, w http.ResponseWriter, r *http.Request) {
-	subdomain := shared.GetSubdomain(r)
+	subdomain := GetSubdomain(r)
 
 	logger := web.Logger.With(
 		"subdomain", subdomain,
@@ -367,7 +378,7 @@ func (web *WebRouter) ServeAsset(fname string, opts *storage.ImgProcessOpts, fro
 		"host", r.Host,
 	)
 
-	props, err := shared.GetProjectFromSubdomain(subdomain)
+	props, err := GetProjectFromSubdomain(subdomain)
 	if err != nil {
 		logger.Info(
 			"could not determine project from subdomain",
@@ -400,9 +411,9 @@ func (web *WebRouter) ServeAsset(fname string, opts *storage.ImgProcessOpts, fro
 	var bucket sst.Bucket
 	// imgs has a different bucket directory
 	if fromImgs {
-		bucket, err = web.Storage.GetBucket(shared.GetImgsBucketName(user.ID))
+		bucket, err = web.Storage.GetBucket(GetImgsBucketName(user.ID))
 	} else {
-		bucket, err = web.Storage.GetBucket(shared.GetAssetBucketName(user.ID))
+		bucket, err = web.Storage.GetBucket(GetAssetBucketName(user.ID))
 		project, err := web.Dbpool.FindProjectByName(user.ID, props.ProjectName)
 		if err != nil {
 			logger.Info("project not found")
@@ -455,8 +466,25 @@ func (web *WebRouter) ServeAsset(fname string, opts *storage.ImgProcessOpts, fro
 	asset.ServeHTTP(w, r)
 }
 
+func GetSubdomainFromRequest(r *http.Request, domain, space string) string {
+	hostDomain := strings.ToLower(strings.Split(r.Host, ":")[0])
+	appDomain := strings.ToLower(strings.Split(domain, ":")[0])
+
+	if hostDomain != appDomain {
+		if strings.Contains(hostDomain, appDomain) {
+			subdomain := strings.TrimSuffix(hostDomain, fmt.Sprintf(".%s", appDomain))
+			return subdomain
+		} else {
+			subdomain := GetCustomDomain(hostDomain, space)
+			return subdomain
+		}
+	}
+
+	return ""
+}
+
 func (web *WebRouter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	subdomain := shared.GetSubdomainFromRequest(r, web.Cfg.Domain, web.Cfg.Space)
+	subdomain := GetSubdomainFromRequest(r, web.Cfg.Domain, web.Cfg.Space)
 	if web.RootRouter == nil || web.UserRouter == nil {
 		web.Logger.Error("routers not initialized")
 		http.Error(w, "routers not initialized", http.StatusInternalServerError)
@@ -470,18 +498,8 @@ func (web *WebRouter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		router = web.UserRouter
 	}
 
-	// enable cors
-	// TODO: I don't think we want this for pgs as a default
-	// users can enable cors headers using `_headers` file
-	/* if r.Method == "OPTIONS" {
-		shared.CorsHeaders(w.Header())
-		w.WriteHeader(http.StatusOK)
-		return
-	}
-	shared.CorsHeaders(w.Header()) */
-
 	ctx := r.Context()
-	ctx = context.WithValue(ctx, shared.CtxSubdomainKey{}, subdomain)
+	ctx = context.WithValue(ctx, CtxSubdomainKey{}, subdomain)
 	router.ServeHTTP(w, r.WithContext(ctx))
 }
 

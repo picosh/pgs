@@ -7,6 +7,11 @@ import (
 	"time"
 )
 
+type Pager struct {
+	Num  int
+	Page int
+}
+
 type Project struct {
 	ID         string     `json:"id"`
 	UserID     string     `json:"user_id"`

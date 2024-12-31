@@ -1,7 +1,6 @@
 package pgs
 
 import (
-	"github.com/charmbracelet/promwish"
 	"github.com/charmbracelet/ssh"
 	"github.com/charmbracelet/wish"
 	wsh "github.com/picosh/pico/wish"
@@ -12,8 +11,6 @@ import (
 	"github.com/picosh/send/protocols/scp"
 	"github.com/picosh/send/protocols/sftp"
 	"github.com/picosh/send/proxy"
-	"github.com/picosh/tunkit"
-	"github.com/picosh/utils"
 )
 
 func createRouter(handler *UploadAssetHandler) proxy.Router {
