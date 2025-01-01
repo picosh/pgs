@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"path/filepath"
-	"strings"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/lipgloss/table"
@@ -35,11 +34,6 @@ func projectTable(projects []*db.Project, width int) *table.Table {
 			links = project.ProjectDir
 		}
 		row = append(row, links)
-		row = append(row,
-			project.Acl.Type,
-			strings.Join(project.Acl.Data, " "),
-		)
-		row = append(row, project.Blocked)
 		data = append(data, row)
 	}
 

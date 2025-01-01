@@ -43,7 +43,7 @@ func NewPgsDb(logger *slog.Logger) *PgsDb {
 	}
 }
 
-func (p *PgsDb) FindUserForName(name string) (*db.User, error) {
+func (p *PgsDb) FindUserByName(name string) (*db.User, error) {
 	return &db.User{
 		ID:   testUserID,
 		Name: testUsername,
@@ -56,25 +56,11 @@ func (p *PgsDb) FindProjectByName(userID, name string) (*db.Project, error) {
 		UserID:     userID,
 		Name:       name,
 		ProjectDir: name,
-		Username:   testUsername,
-		Acl: db.ProjectAcl{
-			Type: "public",
-		},
 	}, nil
 }
 
 type PgsAnalyticsDb struct {
 	*PgsDb
-}
-
-func NewPgsAnalticsDb(logger *slog.Logger) *PgsAnalyticsDb {
-	return &PgsAnalyticsDb{
-		PgsDb: NewPgsDb(logger),
-	}
-}
-
-func (p *PgsAnalyticsDb) HasFeatureForUser(userID, feature string) bool {
-	return true
 }
 
 func mkpath(path string) string {

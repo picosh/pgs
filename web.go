@@ -11,13 +11,11 @@ import (
 	"os"
 	"regexp"
 	"strings"
-	"time"
 
 	_ "net/http/pprof"
 
 	"github.com/darkweak/souin/pkg/middleware"
 	"github.com/darkweak/storages/core"
-	"github.com/gorilla/feeds"
 	"github.com/picosh/pgs/db"
 	"github.com/picosh/pgs/storage"
 	sst "github.com/picosh/pobj/storage"
@@ -94,8 +92,6 @@ func (web *WebRouter) initRouters() {
 	rootRouter.Handle("GET /favicon.ico", web.serveFile("favicon.ico", "image/x-icon"))
 	rootRouter.Handle("GET /robots.txt", web.serveFile("robots.txt", "text/plain"))
 
-	rootRouter.Handle("GET /rss/updated", web.createRssHandler("updated_at"))
-	rootRouter.Handle("GET /rss", web.createRssHandler("created_at"))
 	rootRouter.Handle("GET /{$}", web.createPageHandler("html/marketing.page.tmpl"))
 	web.RootRouter = rootRouter
 
@@ -268,74 +264,6 @@ func (web *WebRouter) CacheMgmt(ctx context.Context, httpCache *middleware.Souin
 	}
 }
 
-func (web *WebRouter) createRssHandler(by string) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		dbpool := web.Dbpool
-		logger := web.Logger
-		cfg := web.Cfg
-
-		pager, err := dbpool.FindAllProjects(&db.Pager{Num: 100, Page: 0}, by)
-		if err != nil {
-			logger.Error("could not find projects", "err", err.Error())
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		feed := &feeds.Feed{
-			Title:       fmt.Sprintf("%s discovery feed %s", cfg.Domain, by),
-			Link:        &feeds.Link{Href: "/"},
-			Description: fmt.Sprintf("%s projects %s", cfg.Domain, by),
-			Author:      &feeds.Author{Name: cfg.Domain},
-			Created:     time.Now(),
-		}
-
-		var feedItems []*feeds.Item
-		for _, project := range pager.Data {
-			realUrl := strings.TrimSuffix(
-				cfg.AssetURL(project.Username, project.Name, ""),
-				"/",
-			)
-			uat := project.UpdatedAt.Unix()
-			id := realUrl
-			title := fmt.Sprintf("%s-%s", project.Username, project.Name)
-			if by == "updated_at" {
-				id = fmt.Sprintf("%s:%d", realUrl, uat)
-				title = fmt.Sprintf("%s - %d", title, uat)
-			}
-
-			item := &feeds.Item{
-				Id:          id,
-				Title:       title,
-				Link:        &feeds.Link{Href: realUrl},
-				Content:     fmt.Sprintf(`<a href="%s">%s</a>`, realUrl, realUrl),
-				Created:     *project.CreatedAt,
-				Updated:     *project.CreatedAt,
-				Description: "",
-				Author:      &feeds.Author{Name: project.Username},
-			}
-
-			feedItems = append(feedItems, item)
-		}
-		feed.Items = feedItems
-
-		rss, err := feed.ToAtom()
-		if err != nil {
-			logger.Error("could not convert feed to atom", "err", err.Error())
-			http.Error(w, "Could not generate atom rss feed", http.StatusInternalServerError)
-		}
-
-		w.Header().Add("Content-Type", "application/atom+xml")
-		_, err = w.Write([]byte(rss))
-		if err != nil {
-			logger.Error("http write failed", "err", err.Error())
-		}
-	}
-}
-
-func (web *WebRouter) Perm(proj *db.Project) bool {
-	return proj.Acl.Type == "public"
-}
-
 var imgRegex = regexp.MustCompile("(.+.(?:jpg|jpeg|png|gif|webp|svg))(/.+)")
 
 func (web *WebRouter) AssetRequest(w http.ResponseWriter, r *http.Request) {
@@ -344,7 +272,7 @@ func (web *WebRouter) AssetRequest(w http.ResponseWriter, r *http.Request) {
 		web.ImageRequest(w, r)
 		return
 	}
-	web.ServeAsset(fname, nil, false, web.Perm, w, r)
+	web.ServeAsset(fname, nil, false, w, r)
 }
 
 func (web *WebRouter) ImageRequest(w http.ResponseWriter, r *http.Request) {
@@ -367,10 +295,10 @@ func (web *WebRouter) ImageRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	web.ServeAsset(fname, opts, false, web.Perm, w, r)
+	web.ServeAsset(fname, opts, false, w, r)
 }
 
-func (web *WebRouter) ServeAsset(fname string, opts *storage.ImgProcessOpts, fromImgs bool, hasPerm HasPerm, w http.ResponseWriter, r *http.Request) {
+func (web *WebRouter) ServeAsset(fname string, opts *storage.ImgProcessOpts, fromImgs bool, w http.ResponseWriter, r *http.Request) {
 	subdomain := GetSubdomain(r)
 
 	logger := web.Logger.With(
@@ -428,18 +356,8 @@ func (web *WebRouter) ServeAsset(fname string, opts *storage.ImgProcessOpts, fro
 			"project", project.Name,
 		)
 
-		if project.Blocked != "" {
-			logger.Error("project has been blocked")
-			http.Error(w, project.Blocked, http.StatusForbidden)
-			return
-		}
-
 		projectID = project.ID
 		projectDir = project.ProjectDir
-		if !hasPerm(project) {
-			http.Error(w, "You do not have access to this site", http.StatusUnauthorized)
-			return
-		}
 	}
 
 	if err != nil {

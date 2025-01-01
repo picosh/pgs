@@ -299,11 +299,6 @@ func (h *UploadAssetHandler) Write(s ssh.Session, entry *sendutils.FileEntry) (s
 		setProject(s, project)
 	}
 
-	if project.Blocked != "" {
-		msg := "project has been blocked and cannot upload files: %s"
-		return "", fmt.Errorf(msg, project.Blocked)
-	}
-
 	if entry.Mode.IsDir() {
 		_, _, err := h.Storage.PutObject(
 			bucket,
