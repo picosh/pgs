@@ -10,6 +10,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/picosh/pgs/db"
 	"github.com/picosh/pgs/storage"
 	sendUtils "github.com/picosh/send/utils"
 	"github.com/picosh/utils"
@@ -59,7 +60,7 @@ func GetAssetBucketName(userID string) string {
 	return fmt.Sprintf("static-%s", userID)
 }
 
-func GetProjectName(entry *utils.FileEntry) string {
+func GetProjectName(entry *sendUtils.FileEntry) string {
 	if entry.Mode.IsDir() && strings.Count(entry.Filepath, string(os.PathSeparator)) == 0 {
 		return entry.Filepath
 	}
@@ -69,7 +70,7 @@ func GetProjectName(entry *utils.FileEntry) string {
 	return list[1]
 }
 
-func GetAssetFileName(entry *utils.FileEntry) string {
+func GetAssetFileName(entry *sendUtils.FileEntry) string {
 	return entry.Filepath
 }
 
@@ -103,4 +104,8 @@ func RenderTemplate(cfg *ConfigSite, templates []string) (*template.Template, er
 		return nil, err
 	}
 	return ts, nil
+}
+
+func LoggerWithUser(logger *slog.Logger, user *db.User) *slog.Logger {
+	return logger.With("user", user.Name, "userId", user.ID)
 }

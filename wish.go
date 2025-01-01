@@ -3,7 +3,6 @@ package pgs
 import (
 	"flag"
 	"fmt"
-	"slices"
 	"strings"
 
 	"github.com/charmbracelet/ssh"
@@ -11,39 +10,8 @@ import (
 	bm "github.com/charmbracelet/wish/bubbletea"
 	"github.com/muesli/termenv"
 	"github.com/picosh/pgs/db"
-	sendutils "github.com/picosh/send/utils"
 	"github.com/picosh/utils"
 )
-
-func getUser(s ssh.Session, dbpool db.DB) (*db.User, error) {
-	if s.PublicKey() == nil {
-		return nil, fmt.Errorf("key not found")
-	}
-
-	key := utils.KeyForKeyText(s.PublicKey())
-
-	user, err := dbpool.FindUserForKey(s.User(), key)
-	if err != nil {
-		return nil, err
-	}
-
-	if user.Name == "" {
-		return nil, fmt.Errorf("must have username set")
-	}
-
-	return user, nil
-}
-
-type arrayFlags []string
-
-func (i *arrayFlags) String() string {
-	return "array flags"
-}
-
-func (i *arrayFlags) Set(value string) error {
-	*i = append(*i, value)
-	return nil
-}
 
 func flagSet(cmdName string, sesh ssh.Session) (*flag.FlagSet, *bool) {
 	cmd := flag.NewFlagSet(cmdName, flag.ContinueOnError)
@@ -62,10 +30,28 @@ func flagCheck(cmd *flag.FlagSet, posArg string, cmdArgs []string) bool {
 	return true
 }
 
+func getUser(s ssh.Session, dbpool db.DB) (*db.User, error) {
+	if s.PublicKey() == nil {
+		return nil, fmt.Errorf("key not found")
+	}
+
+	key := utils.KeyForKeyText(s.PublicKey())
+
+	user, err := dbpool.FindUserByPubkey(s.User(), key)
+	if err != nil {
+		return nil, err
+	}
+
+	if user.Name == "" {
+		return nil, fmt.Errorf("must have username set")
+	}
+
+	return user, nil
+}
+
 func WishMiddleware(handler *UploadAssetHandler) wish.Middleware {
 	dbpool := handler.DBPool
 	log := handler.Cfg.Logger
-	cfg := handler.Cfg
 	store := handler.Storage
 
 	return func(next ssh.Handler) ssh.Handler {
@@ -87,7 +73,7 @@ func WishMiddleware(handler *UploadAssetHandler) wish.Middleware {
 
 			user, err := getUser(sesh, dbpool)
 			if err != nil {
-				sendutils.ErrorHandler(sesh, err)
+				wish.Errorln(sesh, err)
 				return
 			}
 
@@ -110,10 +96,6 @@ func WishMiddleware(handler *UploadAssetHandler) wish.Middleware {
 			if len(args) == 1 {
 				if cmd == "help" {
 					opts.help()
-					return
-				} else if cmd == "stats" {
-					err := opts.stats(cfg.MaxSize)
-					opts.bail(err)
 					return
 				} else if cmd == "ls" {
 					err := opts.ls()
@@ -141,11 +123,7 @@ func WishMiddleware(handler *UploadAssetHandler) wish.Middleware {
 				"cmdArgs", cmdArgs,
 			)
 
-			if cmd == "stats" {
-				err := opts.statsByProject(projectName)
-				opts.bail(err)
-				return
-			} else if cmd == "link" {
+			if cmd == "link" {
 				linkCmd, write := flagSet("link", sesh)
 				linkTo := linkCmd.String("to", "", "symbolic link to this project")
 				if !flagCheck(linkCmd, projectName, cmdArgs) {
@@ -227,32 +205,6 @@ func WishMiddleware(handler *UploadAssetHandler) wish.Middleware {
 				opts.notice()
 				opts.bail(err)
 				return
-			} else if cmd == "acl" {
-				aclCmd, write := flagSet("acl", sesh)
-				aclType := aclCmd.String("type", "", "access type: public, pico, pubkeys")
-				var acls arrayFlags
-				aclCmd.Var(
-					&acls,
-					"acl",
-					"list of pico usernames or sha256 public keys, delimited by commas",
-				)
-				if !flagCheck(aclCmd, projectName, cmdArgs) {
-					return
-				}
-				opts.Write = *write
-
-				if !slices.Contains([]string{"public", "pubkeys", "pico"}, *aclType) {
-					err := fmt.Errorf(
-						"acl type must be one of the following: [public, pubkeys, pico], found %s",
-						*aclType,
-					)
-					opts.bail(err)
-					return
-				}
-
-				err := opts.acl(projectName, *aclType, acls)
-				opts.notice()
-				opts.bail(err)
 			} else {
 				next(sesh)
 				return

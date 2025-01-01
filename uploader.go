@@ -314,7 +314,7 @@ func (h *UploadAssetHandler) Write(s ssh.Session, entry *sendutils.FileEntry) (s
 		return "", err
 	}
 
-	featureFlag := FindPlusFF(h.DBPool, h.Cfg, user.ID)
+	featureFlag := h.DBPool.FindFeature(user.ID)
 	// calculate the filsize difference between the same file already
 	// stored and the updated file being uploaded
 	assetFilename := GetAssetFileName(entry)
@@ -352,8 +352,8 @@ func (h *UploadAssetHandler) Write(s ssh.Session, entry *sendutils.FileEntry) (s
 	//   check filesize constraints is to try and upload the file to s3
 	//	 with a specialized reader that raises an error if the filesize limit
 	//	 has been reached
-	storageMax := featureFlag.Data.StorageMax
-	fileMax := featureFlag.Data.FileMax
+	storageMax := featureFlag.StorageMax
+	fileMax := featureFlag.FileMax
 	curStorageSize := getStorageSize(s)
 	remaining := int64(storageMax) - int64(curStorageSize)
 	sizeRemaining := min(remaining+curFileSize, fileMax)
@@ -368,7 +368,7 @@ func (h *UploadAssetHandler) Write(s ssh.Session, entry *sendutils.FileEntry) (s
 		"sizeRemaining", sizeRemaining,
 	)
 
-	specialFileMax := featureFlag.Data.SpecialFileMax
+	specialFileMax := featureFlag.SpecialFileMax
 	if isSpecialFile(entry) {
 		sizeRemaining = min(sizeRemaining, specialFileMax)
 	}
@@ -399,7 +399,7 @@ func (h *UploadAssetHandler) Write(s ssh.Session, entry *sendutils.FileEntry) (s
 		strings.Replace(data.Filepath, "/"+projectName+"/", "", 1),
 	)
 
-	maxSize := int(featureFlag.Data.StorageMax)
+	maxSize := int(featureFlag.StorageMax)
 	str := fmt.Sprintf(
 		"%s (space: %.2f/%.2fGB, %.2f%%)",
 		url,
@@ -533,7 +533,7 @@ func (h *UploadAssetHandler) writeAsset(reader io.Reader, data *FileData) (int64
 // Repeated messages for the same site are grouped so that we only flush once
 // per site per 5 seconds.
 func runCacheQueue(cfg *ConfigSite, ctx context.Context, ch chan string) {
-	send := createPubCacheDrain(ctx, cfg.Logger)
+	send := CreatePubCacheDrain(ctx, cfg.Logger)
 	var pendingFlushes sync.Map
 	tick := time.Tick(5 * time.Second)
 	for {

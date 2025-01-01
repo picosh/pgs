@@ -13,7 +13,7 @@ func getSurrogateKey(userName, projectName string) string {
 	return fmt.Sprintf("%s-%s", userName, projectName)
 }
 
-func createPubCacheDrain(ctx context.Context, logger *slog.Logger) *pipe.ReconnectReadWriteCloser {
+func CreatePubCacheDrain(ctx context.Context, logger *slog.Logger) *pipe.ReconnectReadWriteCloser {
 	info := NewPicoPipeClient()
 	send := pipe.NewReconnectReadWriteCloser(
 		ctx,
@@ -27,7 +27,7 @@ func createPubCacheDrain(ctx context.Context, logger *slog.Logger) *pipe.Reconne
 	return send
 }
 
-func createSubCacheDrain(ctx context.Context, logger *slog.Logger) *pipe.ReconnectReadWriteCloser {
+func CreateSubCacheDrain(ctx context.Context, logger *slog.Logger) *pipe.ReconnectReadWriteCloser {
 	info := NewPicoPipeClient()
 	send := pipe.NewReconnectReadWriteCloser(
 		ctx,

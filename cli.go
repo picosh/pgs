@@ -197,62 +197,6 @@ func (c *Cmd) help() {
 	c.output(getHelpText(c.User.Name, c.Width))
 }
 
-func (c *Cmd) statsByProject(_ string) error {
-	msg := fmt.Sprintf(
-		"%s\n\nRun %s to access pico's analytics TUI",
-		"DEPRECATED",
-		"ssh pico.sh",
-	)
-	c.output(lipgloss.RoundedBorder.Render(msg))
-	return nil
-}
-
-func (c *Cmd) stats(cfgMaxSize uint64) error {
-	ff, err := c.Dbpool.FindFeatureForUser(c.User.ID, "plus")
-	if err != nil {
-		ff = db.NewFeatureFlag(c.User.ID, "plus", cfgMaxSize, 0, 0)
-	}
-	// this is jank
-	ff.Data.StorageMax = ff.FindStorageMax(cfgMaxSize)
-	storageMax := ff.Data.StorageMax
-
-	bucketName := GetAssetBucketName(c.User.ID)
-	bucket, err := c.Store.UpsertBucket(bucketName)
-	if err != nil {
-		return err
-	}
-
-	totalFileSize, err := c.Store.GetBucketQuota(bucket)
-	if err != nil {
-		return err
-	}
-
-	projects, err := c.Dbpool.FindProjectsByUser(c.User.ID)
-	if err != nil {
-		return err
-	}
-
-	headers := []string{"Used (GB)", "Quota (GB)", "Used (%)", "Projects (#)"}
-	data := []string{
-		fmt.Sprintf("%.4f", utils.BytesToGB(int(totalFileSize))),
-		fmt.Sprintf("%.4f", utils.BytesToGB(int(storageMax))),
-		fmt.Sprintf("%.4f", (float32(totalFileSize)/float32(storageMax))*100),
-		fmt.Sprintf("%d", len(projects)),
-	}
-
-	t := table.New().
-		Width(c.Width).
-		Border(lipgloss.RoundedBorder()).
-		Headers(headers...).
-		Rows(data)
-	c.output(t.String())
-
-	c.output("Site usage analytics:")
-	_ = c.statsByProject("")
-
-	return nil
-}
-
 func (c *Cmd) ls() error {
 	projects, err := c.Dbpool.FindProjectsByUser(c.User.ID)
 	if err != nil {
@@ -263,7 +207,7 @@ func (c *Cmd) ls() error {
 		c.output("no projects found")
 	}
 
-	t := projectTable(c.Styles, projects, c.Width)
+	t := projectTable(projects, c.Width)
 	c.output(t.String())
 
 	return nil
@@ -349,7 +293,7 @@ func (c *Cmd) depends(projectName string) error {
 		return nil
 	}
 
-	t := projectTable(c.Styles, projects, c.Width)
+	t := projectTable(projects, c.Width)
 	c.output(t.String())
 
 	return nil
@@ -469,25 +413,6 @@ func (c *Cmd) rm(projectName string) error {
 	return err
 }
 
-func (c *Cmd) acl(projectName, aclType string, acls []string) error {
-	c.Log.Info(
-		"user running `acl` command",
-		"user", c.User.Name,
-		"project", projectName,
-		"actType", aclType,
-		"acls", acls,
-	)
-	c.output(fmt.Sprintf("setting acl for %s to %s (%s)", projectName, aclType, strings.Join(acls, ",")))
-	acl := db.ProjectAcl{
-		Type: aclType,
-		Data: acls,
-	}
-	if c.Write {
-		return c.Dbpool.UpdateProjectAcl(c.User.ID, projectName, acl)
-	}
-	return nil
-}
-
 func (c *Cmd) cache(projectName string) error {
 	c.Log.Info(
 		"user running `cache` command",
@@ -497,7 +422,7 @@ func (c *Cmd) cache(projectName string) error {
 	c.output(fmt.Sprintf("clearing http cache for %s", projectName))
 	ctx := context.Background()
 	defer ctx.Done()
-	send := createPubCacheDrain(ctx, c.Log)
+	send := CreatePubCacheDrain(ctx, c.Log)
 	if c.Write {
 		surrogate := getSurrogateKey(c.User.Name, projectName)
 		return purgeCache(c.Cfg, send, surrogate)
@@ -506,10 +431,10 @@ func (c *Cmd) cache(projectName string) error {
 }
 
 func (c *Cmd) cacheAll() error {
-	isAdmin := c.Dbpool.HasFeatureForUser(c.User.ID, "admin")
+	/* isAdmin := c.Dbpool.HasFeatureForUser(c.User.ID, "admin")
 	if !isAdmin {
 		return fmt.Errorf("must be admin to use this command")
-	}
+	}*/
 
 	c.Log.Info(
 		"admin running `cache-all` command",
@@ -519,7 +444,7 @@ func (c *Cmd) cacheAll() error {
 	if c.Write {
 		ctx := context.Background()
 		defer ctx.Done()
-		send := createPubCacheDrain(ctx, c.Log)
+		send := CreatePubCacheDrain(ctx, c.Log)
 		return purgeAllCache(c.Cfg, send)
 	}
 	return nil

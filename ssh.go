@@ -13,7 +13,7 @@ import (
 	"github.com/picosh/send/proxy"
 )
 
-func createRouter(handler *UploadAssetHandler) proxy.Router {
+func CreateRouter(handler *UploadAssetHandler) proxy.Router {
 	return func(sh ssh.Handler, s ssh.Session) []wish.Middleware {
 		return []wish.Middleware{
 			pipe.Middleware(handler, ""),
@@ -21,20 +21,19 @@ func createRouter(handler *UploadAssetHandler) proxy.Router {
 			scp.Middleware(handler),
 			wishrsync.Middleware(handler),
 			auth.Middleware(handler),
-			wsh.PtyMdw(wsh.DeprecatedNotice()),
 			WishMiddleware(handler),
 			wsh.LogMiddleware(handler.GetLogger()),
 		}
 	}
 }
 
-func withProxy(handler *UploadAssetHandler, otherMiddleware ...wish.Middleware) ssh.Option {
+func WithProxy(handler *UploadAssetHandler, otherMiddleware ...wish.Middleware) ssh.Option {
 	return func(server *ssh.Server) error {
 		err := sftp.SSHOption(handler)(server)
 		if err != nil {
 			return err
 		}
 
-		return proxy.WithProxy(createRouter(handler), otherMiddleware...)(server)
+		return proxy.WithProxy(CreateRouter(handler), otherMiddleware...)(server)
 	}
 }

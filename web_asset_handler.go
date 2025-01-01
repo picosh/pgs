@@ -30,7 +30,6 @@ type ApiAssetHandler struct {
 	Bucket         sst.Bucket
 	ImgProcessOpts *storage.ImgProcessOpts
 	ProjectID      string
-	HasPicoPlus    bool
 }
 
 func hasProtocol(url string) bool {
@@ -98,7 +97,7 @@ func (h *ApiAssetHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, destUrl.String(), fp.Status)
 			return
 		} else if hasProtocol(fp.Filepath) {
-			if !h.HasPicoPlus {
+			/* if !h.HasPicoPlus {
 				msg := "must be pico+ user to fetch content from external source"
 				logger.Error(
 					msg,
@@ -107,7 +106,7 @@ func (h *ApiAssetHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				)
 				http.Error(w, msg, http.StatusUnauthorized)
 				return
-			}
+			} */
 
 			logger.Info(
 				"fetching content from external service",

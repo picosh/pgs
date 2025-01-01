@@ -24,6 +24,8 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+type CtxSubdomainKey struct{}
+
 func GetSubdomain(r *http.Request) string {
 	return r.Context().Value(CtxSubdomainKey{}).(string)
 }
@@ -180,7 +182,7 @@ func (web *WebRouter) checkHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		u, err := dbpool.FindUserForName(props.Username)
+		u, err := dbpool.FindUserByName(props.Username)
 		if err != nil {
 			logger.Error("could not find user", "err", err.Error())
 			w.WriteHeader(http.StatusNotFound)
@@ -212,9 +214,9 @@ func (web *WebRouter) checkHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotFound)
 }
 
-func (web *WebRouter) cacheMgmt(ctx context.Context, httpCache *middleware.SouinBaseHandler) {
+func (web *WebRouter) CacheMgmt(ctx context.Context, httpCache *middleware.SouinBaseHandler) {
 	storer := httpCache.Storers[0]
-	drain := createSubCacheDrain(ctx, web.Logger)
+	drain := CreateSubCacheDrain(ctx, web.Logger)
 
 	for {
 		scanner := bufio.NewScanner(drain)
@@ -393,7 +395,7 @@ func (web *WebRouter) ServeAsset(fname string, opts *storage.ImgProcessOpts, fro
 		"user", props.Username,
 	)
 
-	user, err := web.Dbpool.FindUserForName(props.Username)
+	user, err := web.Dbpool.FindUserByName(props.Username)
 	if err != nil {
 		logger.Info("user not found")
 		http.Error(w, "user not found", http.StatusNotFound)
@@ -446,8 +448,6 @@ func (web *WebRouter) ServeAsset(fname string, opts *storage.ImgProcessOpts, fro
 		return
 	}
 
-	hasPicoPlus := web.Dbpool.HasFeatureForUser(user.ID, "plus")
-
 	asset := &ApiAssetHandler{
 		WebRouter: web,
 		Logger:    logger,
@@ -460,7 +460,6 @@ func (web *WebRouter) ServeAsset(fname string, opts *storage.ImgProcessOpts, fro
 		Bucket:         bucket,
 		ImgProcessOpts: opts,
 		ProjectID:      projectID,
-		HasPicoPlus:    hasPicoPlus,
 	}
 
 	asset.ServeHTTP(w, r)
