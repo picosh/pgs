@@ -98,20 +98,13 @@ type FileData struct {
 }
 
 type UploadAssetHandler struct {
-	DBPool             db.DB
 	Cfg                *ConfigSite
-	Storage            sst.ObjectStorage
 	CacheClearingQueue chan string
 }
 
-func NewUploadAssetHandler(dbpool db.DB, cfg *ConfigSite, storage sst.ObjectStorage, ctx context.Context) *UploadAssetHandler {
-	// Enable buffering so we don't slow down uploads.
-	ch := make(chan string, 100)
-	go runCacheQueue(cfg, ctx, ch)
+func NewUploadAssetHandler(cfg *ConfigSite, ch chan string) *UploadAssetHandler {
 	return &UploadAssetHandler{
-		DBPool:             dbpool,
 		Cfg:                cfg,
-		Storage:            storage,
 		CacheClearingQueue: ch,
 	}
 }
@@ -121,7 +114,12 @@ func (h *UploadAssetHandler) GetLogger() *slog.Logger {
 }
 
 func (h *UploadAssetHandler) Read(s ssh.Session, entry *sendutils.FileEntry) (os.FileInfo, sendutils.ReaderAtCloser, error) {
-	user, err := h.DBPool.FindUser(s.Permissions().Extensions["user_id"])
+	userID, err := GetUserIDFromSession(s)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	user, err := h.Cfg.DB.FindUser(userID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -133,13 +131,13 @@ func (h *UploadAssetHandler) Read(s ssh.Session, entry *sendutils.FileEntry) (os
 		FModTime: time.Unix(entry.Mtime, 0),
 	}
 
-	bucket, err := h.Storage.GetBucket(GetAssetBucketName(user.ID))
+	bucket, err := h.Cfg.Storage.GetBucket(GetAssetBucketName(user.ID))
 	if err != nil {
 		return nil, nil, err
 	}
 
 	fname := GetAssetFileName(entry)
-	contents, info, err := h.Storage.GetObject(bucket, fname)
+	contents, info, err := h.Cfg.Storage.GetObject(bucket, fname)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -155,7 +153,12 @@ func (h *UploadAssetHandler) Read(s ssh.Session, entry *sendutils.FileEntry) (os
 func (h *UploadAssetHandler) List(s ssh.Session, fpath string, isDir bool, recursive bool) ([]os.FileInfo, error) {
 	var fileList []os.FileInfo
 
-	user, err := h.DBPool.FindUser(s.Permissions().Extensions["user_id"])
+	userID, err := GetUserIDFromSession(s)
+	if err != nil {
+		return nil, err
+	}
+
+	user, err := h.Cfg.DB.FindUser(userID)
 	if err != nil {
 		return fileList, err
 	}
@@ -163,7 +166,7 @@ func (h *UploadAssetHandler) List(s ssh.Session, fpath string, isDir bool, recur
 	cleanFilename := fpath
 
 	bucketName := GetAssetBucketName(user.ID)
-	bucket, err := h.Storage.GetBucket(bucketName)
+	bucket, err := h.Cfg.Storage.GetBucket(bucketName)
 	if err != nil {
 		return fileList, err
 	}
@@ -185,7 +188,7 @@ func (h *UploadAssetHandler) List(s ssh.Session, fpath string, isDir bool, recur
 			cleanFilename += "/"
 		}
 
-		foundList, err := h.Storage.ListObjects(bucket, cleanFilename, recursive)
+		foundList, err := h.Cfg.Storage.ListObjects(bucket, cleanFilename, recursive)
 		if err != nil {
 			return fileList, err
 		}
@@ -197,19 +200,33 @@ func (h *UploadAssetHandler) List(s ssh.Session, fpath string, isDir bool, recur
 }
 
 func (h *UploadAssetHandler) Validate(s ssh.Session) error {
-	user, err := h.DBPool.FindUser(s.Permissions().Extensions["user_id"])
+	userID, err := GetUserIDFromSession(s)
 	if err != nil {
 		return err
 	}
 
+	user, err := h.Cfg.DB.FindUser(userID)
+	if err != nil {
+		return err
+	}
+
+	featureFlag, err := h.Cfg.DB.FindFeature(user.ID)
+	if err != nil {
+		return err
+	}
+
+	if !slices.Contains(featureFlag.Perms, "write") {
+		return fmt.Errorf("you are not authorized to upload files")
+	}
+
 	assetBucket := GetAssetBucketName(user.ID)
-	bucket, err := h.Storage.UpsertBucket(assetBucket)
+	bucket, err := h.Cfg.Storage.UpsertBucket(assetBucket)
 	if err != nil {
 		return err
 	}
 	s.Context().SetValue(ctxBucketKey{}, bucket)
 
-	totalStorageSize, err := h.Storage.GetBucketQuota(bucket)
+	totalStorageSize, err := h.Cfg.Storage.GetBucketQuota(bucket)
 	if err != nil {
 		return err
 	}
@@ -223,14 +240,13 @@ func (h *UploadAssetHandler) Validate(s ssh.Session) error {
 	h.Cfg.Logger.Info(
 		"attempting to upload files",
 		"user", user.Name,
-		"space", h.Cfg.Space,
 	)
 
 	return nil
 }
 
 func (h *UploadAssetHandler) findDenylist(bucket sst.Bucket, project *db.Project, logger *slog.Logger) (string, error) {
-	fp, _, err := h.Storage.GetObject(bucket, filepath.Join(project.ProjectDir, "_pgs_ignore"))
+	fp, _, err := h.Cfg.Storage.GetObject(bucket, filepath.Join(project.ProjectDir, "_pgs_ignore"))
 	if err != nil {
 		return "", fmt.Errorf("_pgs_ignore not found")
 	}
@@ -248,7 +264,12 @@ func (h *UploadAssetHandler) findDenylist(bucket sst.Bucket, project *db.Project
 }
 
 func (h *UploadAssetHandler) Write(s ssh.Session, entry *sendutils.FileEntry) (string, error) {
-	user, err := h.DBPool.FindUser(s.Permissions().Extensions["user_id"])
+	userID, err := GetUserIDFromSession(s)
+	if err != nil {
+		return "", err
+	}
+
+	user, err := h.Cfg.DB.FindUser(userID)
 	if user == nil || err != nil {
 		h.Cfg.Logger.Error("user not found in ctx", "err", err.Error())
 		return "", err
@@ -277,20 +298,20 @@ func (h *UploadAssetHandler) Write(s ssh.Session, entry *sendutils.FileEntry) (s
 
 	// find, create, or update project if we haven't already done it
 	if project == nil {
-		project, err = h.DBPool.FindProjectByName(user.ID, projectName)
+		project, err = h.Cfg.DB.FindProjectByName(user.ID, projectName)
 		if err == nil {
-			err = h.DBPool.UpdateProject(user.ID, projectName)
+			err = h.Cfg.DB.UpdateProject(user.ID, projectName)
 			if err != nil {
 				logger.Error("could not update project", "err", err.Error())
 				return "", err
 			}
 		} else {
-			_, err = h.DBPool.InsertProject(user.ID, projectName, projectName)
+			_, err = h.Cfg.DB.InsertProject(user.ID, projectName, projectName)
 			if err != nil {
 				logger.Error("could not create project", "err", err.Error())
 				return "", err
 			}
-			project, err = h.DBPool.FindProjectByName(user.ID, projectName)
+			project, err = h.Cfg.DB.FindProjectByName(user.ID, projectName)
 			if err != nil {
 				logger.Error("could not find project", "err", err.Error())
 				return "", err
@@ -300,7 +321,7 @@ func (h *UploadAssetHandler) Write(s ssh.Session, entry *sendutils.FileEntry) (s
 	}
 
 	if entry.Mode.IsDir() {
-		_, _, err := h.Storage.PutObject(
+		_, _, err := h.Cfg.Storage.PutObject(
 			bucket,
 			path.Join(GetAssetFileName(entry), "._pico_keep_dir"),
 			bytes.NewReader([]byte{}),
@@ -309,11 +330,14 @@ func (h *UploadAssetHandler) Write(s ssh.Session, entry *sendutils.FileEntry) (s
 		return "", err
 	}
 
-	featureFlag := h.DBPool.FindFeature(user.ID)
+	featureFlag, err := h.Cfg.DB.FindFeature(user.ID)
+	if err != nil {
+		return "", err
+	}
 	// calculate the filsize difference between the same file already
 	// stored and the updated file being uploaded
 	assetFilename := GetAssetFileName(entry)
-	_, info, _ := h.Storage.GetObject(bucket, assetFilename)
+	_, info, _ := h.Cfg.Storage.GetObject(bucket, assetFilename)
 	var curFileSize int64
 	if info != nil {
 		curFileSize = info.Size
@@ -415,7 +439,12 @@ func isSpecialFile(entry *sendutils.FileEntry) bool {
 }
 
 func (h *UploadAssetHandler) Delete(s ssh.Session, entry *sendutils.FileEntry) error {
-	user, err := h.DBPool.FindUser(s.Permissions().Extensions["user_id"])
+	userID, err := GetUserIDFromSession(s)
+	if err != nil {
+		return err
+	}
+
+	user, err := h.Cfg.DB.FindUser(userID)
 	if err != nil {
 		h.Cfg.Logger.Error("user not found in ctx", "err", err.Error())
 		return err
@@ -451,7 +480,7 @@ func (h *UploadAssetHandler) Delete(s ssh.Session, entry *sendutils.FileEntry) e
 	pathDir := filepath.Dir(assetFilepath)
 	fileName := filepath.Base(assetFilepath)
 
-	sibs, err := h.Storage.ListObjects(bucket, pathDir+"/", false)
+	sibs, err := h.Cfg.Storage.ListObjects(bucket, pathDir+"/", false)
 	if err != nil {
 		return err
 	}
@@ -461,7 +490,7 @@ func (h *UploadAssetHandler) Delete(s ssh.Session, entry *sendutils.FileEntry) e
 	})
 
 	if len(sibs) == 0 {
-		_, _, err := h.Storage.PutObject(
+		_, _, err := h.Cfg.Storage.PutObject(
 			bucket,
 			filepath.Join(pathDir, "._pico_keep_dir"),
 			bytes.NewReader([]byte{}),
@@ -471,7 +500,7 @@ func (h *UploadAssetHandler) Delete(s ssh.Session, entry *sendutils.FileEntry) e
 			return err
 		}
 	}
-	err = h.Storage.DeleteObject(bucket, assetFilepath)
+	err = h.Cfg.Storage.DeleteObject(bucket, assetFilepath)
 
 	surrogate := getSurrogateKey(user.Name, projectName)
 	h.CacheClearingQueue <- surrogate
@@ -514,7 +543,7 @@ func (h *UploadAssetHandler) writeAsset(reader io.Reader, data *FileData) (int64
 		"filename", assetFilepath,
 	)
 
-	_, fsize, err := h.Storage.PutObject(
+	_, fsize, err := h.Cfg.Storage.PutObject(
 		data.Bucket,
 		assetFilepath,
 		reader,
@@ -523,11 +552,11 @@ func (h *UploadAssetHandler) writeAsset(reader io.Reader, data *FileData) (int64
 	return fsize, err
 }
 
-// runCacheQueue processes requests to purge the cache for a single site.
+// RunCacheQueue processes requests to purge the cache for a single site.
 // One message arrives per file that is written/deleted during uploads.
 // Repeated messages for the same site are grouped so that we only flush once
 // per site per 5 seconds.
-func runCacheQueue(cfg *ConfigSite, ctx context.Context, ch chan string) {
+func RunCacheQueue(cfg *ConfigSite, ctx context.Context, ch chan string) {
 	send := CreatePubCacheDrain(ctx, cfg.Logger)
 	var pendingFlushes sync.Map
 	tick := time.Tick(5 * time.Second)

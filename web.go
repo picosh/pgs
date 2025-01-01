@@ -28,8 +28,8 @@ func GetSubdomain(r *http.Request) string {
 	return r.Context().Value(CtxSubdomainKey{}).(string)
 }
 
-func GetCustomDomain(host string, space string) string {
-	txt := fmt.Sprintf("_%s.%s", space, host)
+func GetCustomDomain(host string, prefix string) string {
+	txt := fmt.Sprintf("_%s.%s", prefix, host)
 	records, err := net.LookupTXT(txt)
 	if err != nil {
 		return ""
@@ -166,7 +166,7 @@ func (web *WebRouter) checkHandler(w http.ResponseWriter, r *http.Request) {
 	appDomain := strings.Split(cfg.Domain, ":")[0]
 
 	if !strings.Contains(hostDomain, appDomain) {
-		subdomain := GetCustomDomain(hostDomain, cfg.Space)
+		subdomain := GetCustomDomain(hostDomain, cfg.TxtPrefix)
 		props, err := GetProjectFromSubdomain(subdomain)
 		if err != nil {
 			logger.Error(
@@ -383,7 +383,7 @@ func (web *WebRouter) ServeAsset(fname string, opts *storage.ImgProcessOpts, fro
 	asset.ServeHTTP(w, r)
 }
 
-func GetSubdomainFromRequest(r *http.Request, domain, space string) string {
+func GetSubdomainFromRequest(r *http.Request, domain, prefix string) string {
 	hostDomain := strings.ToLower(strings.Split(r.Host, ":")[0])
 	appDomain := strings.ToLower(strings.Split(domain, ":")[0])
 
@@ -392,7 +392,7 @@ func GetSubdomainFromRequest(r *http.Request, domain, space string) string {
 			subdomain := strings.TrimSuffix(hostDomain, fmt.Sprintf(".%s", appDomain))
 			return subdomain
 		} else {
-			subdomain := GetCustomDomain(hostDomain, space)
+			subdomain := GetCustomDomain(hostDomain, prefix)
 			return subdomain
 		}
 	}
@@ -401,7 +401,7 @@ func GetSubdomainFromRequest(r *http.Request, domain, space string) string {
 }
 
 func (web *WebRouter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	subdomain := GetSubdomainFromRequest(r, web.Cfg.Domain, web.Cfg.Space)
+	subdomain := GetSubdomainFromRequest(r, web.Cfg.Domain, web.Cfg.TxtPrefix)
 	if web.RootRouter == nil || web.UserRouter == nil {
 		web.Logger.Error("routers not initialized")
 		http.Error(w, "routers not initialized", http.StatusInternalServerError)

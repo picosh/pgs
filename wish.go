@@ -50,9 +50,9 @@ func getUser(s ssh.Session, dbpool db.DB) (*db.User, error) {
 }
 
 func WishMiddleware(handler *UploadAssetHandler) wish.Middleware {
-	dbpool := handler.DBPool
+	dbpool := handler.Cfg.DB
 	log := handler.Cfg.Logger
-	store := handler.Storage
+	store := handler.Cfg.Storage
 
 	return func(next ssh.Handler) ssh.Handler {
 		return func(sesh ssh.Session) {

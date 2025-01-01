@@ -4,26 +4,29 @@ import (
 	"time"
 )
 
-type Paginate[T any] struct {
-	Data  []T
-	Total int
-}
-
-type Pager struct {
-	Num  int
-	Page int
-}
-
 type User struct {
 	ID        string     `json:"id"`
 	Name      string     `json:"name"`
 	CreatedAt *time.Time `json:"created_at"`
 }
 
+type PublicKey struct {
+	ID        string     `json:"id"`
+	UserID    string     `json:"user_id"`
+	Name      string     `json:"name"`
+	Key       string     `json:"key"`
+	CreatedAt *time.Time `json:"created_at"`
+}
+
 type FeatureData struct {
-	StorageMax     uint64 `json:"storage_max"`
-	FileMax        int64  `json:"file_max"`
-	SpecialFileMax int64  `json:"special_file_max"`
+	// A permissions slice, used values: "write"
+	Perms []string `json:"perms"`
+	// Max total storage size allowed for a user
+	StorageMax uint64 `json:"storage_max"`
+	// Max file size allowed for a user
+	FileMax int64 `json:"file_max"`
+	// Max file size allowed for special files like `_headers` and `_redirects`
+	SpecialFileMax int64 `json:"special_file_max"`
 }
 
 type Project struct {
@@ -40,7 +43,7 @@ type DB interface {
 	FindUserByName(name string) (*User, error)
 	FindUserByPubkey(username string, pubkey string) (*User, error)
 
-	FindFeature(userID string) *FeatureData
+	FindFeature(userID string) (*FeatureData, error)
 
 	InsertProject(userID, name, projectDir string) (string, error)
 	UpdateProject(userID, name string) error
@@ -50,5 +53,6 @@ type DB interface {
 	FindProjectLinks(userID, name string) ([]*Project, error)
 	FindProjectsByUser(userID string) ([]*Project, error)
 	FindProjectsByPrefix(userID, name string) ([]*Project, error)
-	FindAllProjects(page *Pager, by string) (*Paginate[*Project], error)
+
+	Close() error
 }

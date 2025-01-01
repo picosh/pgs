@@ -1,28 +1,19 @@
 package pgs
 
 import (
-	"context"
 	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 	"text/template"
-	"time"
 
+	"github.com/charmbracelet/ssh"
 	"github.com/picosh/pgs/db"
-	"github.com/picosh/pgs/storage"
 	sendUtils "github.com/picosh/send/utils"
 	"github.com/picosh/utils"
 	"github.com/picosh/utils/pipe"
-	pipeLogger "github.com/picosh/utils/pipe/log"
 )
-
-type ApiConfig struct {
-	Cfg     *ConfigSite
-	Dbpool  db.DB
-	Storage storage.StorageServe
-}
 
 func NewPicoPipeClient() *pipe.SSHClientInfo {
 	return &pipe.SSHClientInfo{
@@ -34,30 +25,16 @@ func NewPicoPipeClient() *pipe.SSHClientInfo {
 	}
 }
 
-func CreateLogger(space string) *slog.Logger {
-	opts := &slog.HandlerOptions{
-		AddSource: true,
-	}
-	log := slog.New(
-		slog.NewTextHandler(os.Stdout, opts),
-	)
-
-	newLogger := log
-
-	if strings.ToLower(utils.GetEnv("PICO_PIPE_ENABLED", "true")) == "true" {
-		conn := NewPicoPipeClient()
-		newLogger = pipeLogger.RegisterReconnectLogger(context.Background(), log, conn, 100, 10*time.Millisecond)
-	}
-
-	return newLogger.With("service", space)
-}
-
 func GetImgsBucketName(userID string) string {
 	return userID
 }
 
 func GetAssetBucketName(userID string) string {
 	return fmt.Sprintf("static-%s", userID)
+}
+
+func GetAssetFileName(entry *sendUtils.FileEntry) string {
+	return entry.Filepath
 }
 
 func GetProjectName(entry *sendUtils.FileEntry) string {
@@ -68,10 +45,6 @@ func GetProjectName(entry *sendUtils.FileEntry) string {
 	dir := filepath.Dir(entry.Filepath)
 	list := strings.Split(dir, string(os.PathSeparator))
 	return list[1]
-}
-
-func GetAssetFileName(entry *sendUtils.FileEntry) string {
-	return entry.Filepath
 }
 
 type SubdomainProps struct {
@@ -108,4 +81,26 @@ func RenderTemplate(cfg *ConfigSite, templates []string) (*template.Template, er
 
 func LoggerWithUser(logger *slog.Logger, user *db.User) *slog.Logger {
 	return logger.With("user", user.Name, "userId", user.ID)
+}
+
+// The ssh app uses `user_id` to determine the current user
+// for the running session.  This value must be set before our
+// upload handler is called.
+func SetUserIdForSession(ctx ssh.Context, userID string) {
+	if ctx.Permissions().Extensions == nil {
+		ctx.Permissions().Extensions = map[string]string{}
+	}
+	ctx.Permissions().Extensions["user_id"] = userID
+}
+
+// This fn grabs the user_id from the session's extensions.
+func GetUserIDFromSession(sesh ssh.Session) (string, error) {
+	if sesh.Permissions().Extensions == nil {
+		return "", fmt.Errorf("no extensions map created for ssh session")
+	}
+	userID := sesh.Permissions().Extensions["user_id"]
+	if userID == "" {
+		return "", fmt.Errorf("extension `user_id` not set for ssh session")
+	}
+	return userID, nil
 }

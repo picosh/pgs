@@ -5,40 +5,42 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/picosh/pgs/db"
+	"github.com/picosh/pgs/storage"
+	sst "github.com/picosh/pobj/storage"
 	"github.com/picosh/utils"
 )
 
 type ConfigSite struct {
-	Debug              bool
-	SendgridKey        string
-	Domain             string
-	Port               string
-	PortOverride       string
-	Protocol           string
-	DbURL              string
-	StorageDir         string
-	CacheTTL           time.Duration
 	CacheControl       string
-	MinioURL           string
-	MinioUser          string
-	MinioPass          string
-	Space              string
-	Issuer             string
-	Secret             string
-	SecretWebhook      string
-	AllowedExt         []string
-	HiddenPosts        []string
-	MaxSize            uint64
+	CacheTTL           time.Duration
+	Domain             string
 	MaxAssetSize       int64
+	MaxSize            uint64
 	MaxSpecialFileSize int64
-	Logger             *slog.Logger
+	SshHost            string
+	SshPort            string
+	StorageDir         string
+	TxtPrefix          string
+	WebPort            string
+	WebProtocol        string
+
+	// This channel will receive the surrogate key for a project (e.g. static site)
+	// which will inform the caching layer to clear the cache for that site.
+	CacheClearingQueue chan string
+	// Database layer; it's just an interface that could be implemented
+	// with anything.
+	DB     db.DB
+	Logger *slog.Logger
+	// Where we store the static assets uploaded to our service.
+	Storage sst.ObjectStorage
 }
 
 func (c *ConfigSite) AssetURL(username, projectName, fpath string) string {
 	if username == projectName {
 		return fmt.Sprintf(
 			"%s://%s.%s/%s",
-			c.Protocol,
+			c.WebProtocol,
 			username,
 			c.Domain,
 			fpath,
@@ -47,7 +49,7 @@ func (c *ConfigSite) AssetURL(username, projectName, fpath string) string {
 
 	return fmt.Sprintf(
 		"%s://%s-%s.%s/%s",
-		c.Protocol,
+		c.WebProtocol,
 		username,
 		projectName,
 		c.Domain,
@@ -61,7 +63,7 @@ var maxAssetSize = int64(10 * utils.MB)
 // Needs to be small for caching files like _headers and _redirects.
 var maxSpecialFileSize = int64(5 * utils.KB)
 
-func NewConfigSite() *ConfigSite {
+func NewConfigSite(logger *slog.Logger, dbpool db.DB, st storage.StorageServe) *ConfigSite {
 	domain := utils.GetEnv("PGS_DOMAIN", "pgs.sh")
 	port := utils.GetEnv("PGS_WEB_PORT", "3000")
 	protocol := utils.GetEnv("PGS_PROTOCOL", "https")
@@ -73,27 +75,38 @@ func NewConfigSite() *ConfigSite {
 	cacheControl := utils.GetEnv(
 		"PGS_CACHE_CONTROL",
 		fmt.Sprintf("max-age=%d", int(cacheTTL.Seconds())))
-	minioURL := utils.GetEnv("MINIO_URL", "")
+
+	sshHost := utils.GetEnv("PGS_SSH_HOST", "0.0.0.0")
+	sshPort := utils.GetEnv("PGS_SSH_PORT", "2222")
+
+	/*minioURL := utils.GetEnv("MINIO_URL", "")
 	minioUser := utils.GetEnv("MINIO_ROOT_USER", "")
 	minioPass := utils.GetEnv("MINIO_ROOT_PASSWORD", "")
-	dbURL := utils.GetEnv("DATABASE_URL", "")
+	var st storage.StorageServe
+	if minioURL == "" {
+		st, err = storage.NewStorageFS(storageDir)
+	} else {
+		st, err = storage.NewStorageMinio(minioURL, minioUser, minioPass)
+	}*/
 
 	cfg := ConfigSite{
-		Domain:             domain,
-		Port:               port,
-		Protocol:           protocol,
-		DbURL:              dbURL,
-		StorageDir:         storageDir,
-		CacheTTL:           cacheTTL,
 		CacheControl:       cacheControl,
-		MinioURL:           minioURL,
-		MinioUser:          minioUser,
-		MinioPass:          minioPass,
-		Space:              "pgs",
-		MaxSize:            maxSize,
+		CacheTTL:           cacheTTL,
+		Domain:             domain,
 		MaxAssetSize:       maxAssetSize,
+		MaxSize:            maxSize,
 		MaxSpecialFileSize: maxSpecialFileSize,
-		Logger:             CreateLogger("pgs"),
+		SshHost:            sshHost,
+		SshPort:            sshPort,
+		StorageDir:         storageDir,
+		TxtPrefix:          "pgs",
+		WebPort:            port,
+		WebProtocol:        protocol,
+
+		CacheClearingQueue: make(chan string, 100),
+		DB:                 dbpool,
+		Logger:             logger,
+		Storage:            st,
 	}
 
 	return &cfg
