@@ -16,7 +16,6 @@ import (
 
 	"github.com/darkweak/souin/pkg/middleware"
 	"github.com/darkweak/storages/core"
-	"github.com/picosh/pgs/db"
 	"github.com/picosh/pgs/storage"
 	sst "github.com/picosh/pobj/storage"
 	"google.golang.org/protobuf/proto"
@@ -57,23 +56,15 @@ func (c *CachedHttp) ServeHTTP(writer http.ResponseWriter, req *http.Request) {
 	}
 }
 
-type HasPerm = func(proj *db.Project) bool
-
 type WebRouter struct {
-	Cfg        *ConfigSite
-	Logger     *slog.Logger
-	Dbpool     db.DB
-	Storage    storage.StorageServe
+	*ConfigSite
 	RootRouter *http.ServeMux
 	UserRouter *http.ServeMux
 }
 
-func NewWebRouter(cfg *ConfigSite, logger *slog.Logger, dbpool db.DB, st storage.StorageServe) *WebRouter {
+func NewWebRouter(cfg *ConfigSite) *WebRouter {
 	router := &WebRouter{
-		Cfg:     cfg,
-		Logger:  logger,
-		Dbpool:  dbpool,
-		Storage: st,
+		ConfigSite: cfg,
 	}
 	router.initRouters()
 	return router
@@ -86,13 +77,8 @@ func (web *WebRouter) initRouters() {
 	// root domain
 	rootRouter := http.NewServeMux()
 	rootRouter.HandleFunc("GET /check", web.checkHandler)
-	rootRouter.Handle("GET /main.css", web.serveFile("main.css", "text/css"))
-	rootRouter.Handle("GET /favicon-16x16.png", web.serveFile("favicon-16x16.png", "image/png"))
-	rootRouter.Handle("GET /apple-touch-icon.png", web.serveFile("apple-touch-icon.png", "image/png"))
-	rootRouter.Handle("GET /favicon.ico", web.serveFile("favicon.ico", "image/x-icon"))
 	rootRouter.Handle("GET /robots.txt", web.serveFile("robots.txt", "text/plain"))
-
-	rootRouter.Handle("GET /{$}", web.createPageHandler("html/marketing.page.tmpl"))
+	rootRouter.Handle("GET /", web.serveFile("index.html", "text/html"))
 	web.RootRouter = rootRouter
 
 	// subdomain or custom domains
@@ -129,44 +115,15 @@ func (web *WebRouter) serveFile(file string, contentType string) http.HandlerFun
 	}
 }
 
-func (web *WebRouter) createPageHandler(fname string) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		logger := web.Logger
-		cfg := web.Cfg
-		ts, err := RenderTemplate(cfg, []string{fname})
-
-		if err != nil {
-			logger.Error(
-				"could not render template",
-				"fname", fname,
-				"err", err.Error(),
-			)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		err = ts.Execute(w, nil)
-		if err != nil {
-			logger.Error(
-				"could not execute template",
-				"fname", fname,
-				"err", err.Error(),
-			)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
-	}
-}
-
 func (web *WebRouter) checkHandler(w http.ResponseWriter, r *http.Request) {
-	dbpool := web.Dbpool
-	cfg := web.Cfg
+	dbpool := web.DB
 	logger := web.Logger
 
 	hostDomain := r.URL.Query().Get("domain")
-	appDomain := strings.Split(cfg.Domain, ":")[0]
+	appDomain := strings.Split(web.Domain, ":")[0]
 
 	if !strings.Contains(hostDomain, appDomain) {
-		subdomain := GetCustomDomain(hostDomain, cfg.TxtPrefix)
+		subdomain := GetCustomDomain(hostDomain, web.TxtPrefix)
 		props, err := GetProjectFromSubdomain(subdomain)
 		if err != nil {
 			logger.Error(
@@ -323,7 +280,7 @@ func (web *WebRouter) ServeAsset(fname string, opts *storage.ImgProcessOpts, fro
 		"user", props.Username,
 	)
 
-	user, err := web.Dbpool.FindUserByName(props.Username)
+	user, err := web.DB.FindUserByName(props.Username)
 	if err != nil {
 		logger.Info("user not found")
 		http.Error(w, "user not found", http.StatusNotFound)
@@ -344,7 +301,7 @@ func (web *WebRouter) ServeAsset(fname string, opts *storage.ImgProcessOpts, fro
 		bucket, err = web.Storage.GetBucket(GetImgsBucketName(user.ID))
 	} else {
 		bucket, err = web.Storage.GetBucket(GetAssetBucketName(user.ID))
-		project, err := web.Dbpool.FindProjectByName(user.ID, props.ProjectName)
+		project, err := web.DB.FindProjectByName(user.ID, props.ProjectName)
 		if err != nil {
 			logger.Info("project not found")
 			http.Error(w, "project not found", http.StatusNotFound)
@@ -401,7 +358,7 @@ func GetSubdomainFromRequest(r *http.Request, domain, prefix string) string {
 }
 
 func (web *WebRouter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	subdomain := GetSubdomainFromRequest(r, web.Cfg.Domain, web.Cfg.TxtPrefix)
+	subdomain := GetSubdomainFromRequest(r, web.Domain, web.TxtPrefix)
 	if web.RootRouter == nil || web.UserRouter == nil {
 		web.Logger.Error("routers not initialized")
 		http.Error(w, "routers not initialized", http.StatusInternalServerError)

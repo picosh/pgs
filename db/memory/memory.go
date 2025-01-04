@@ -23,7 +23,7 @@ func NewDBMemory(logger *slog.Logger) *MemoryDB {
 	d := &MemoryDB{
 		Logger: logger,
 	}
-	d.Logger.Info("Connecting to test database")
+	d.Logger.Info("Connecting to our in-memory database. All data created during runtime will be lost on exit.")
 	return d
 }
 

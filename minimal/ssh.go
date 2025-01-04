@@ -1,4 +1,4 @@
-package pgs
+package minimal
 
 import (
 	"context"
@@ -10,6 +10,7 @@ import (
 
 	"github.com/charmbracelet/ssh"
 	"github.com/charmbracelet/wish"
+	"github.com/picosh/pgs"
 	wsh "github.com/picosh/pico/wish"
 	"github.com/picosh/send/auth"
 	"github.com/picosh/send/list"
@@ -20,20 +21,20 @@ import (
 	"github.com/picosh/utils"
 )
 
-func createRouter(handler *UploadAssetHandler) proxy.Router {
+func createRouter(handler *pgs.UploadAssetHandler) proxy.Router {
 	return func(sh ssh.Handler, s ssh.Session) []wish.Middleware {
 		return []wish.Middleware{
 			list.Middleware(handler),
 			scp.Middleware(handler),
 			wishrsync.Middleware(handler),
 			auth.Middleware(handler),
-			WishMiddleware(handler),
+			pgs.WishMiddleware(handler),
 			wsh.LogMiddleware(handler.GetLogger()),
 		}
 	}
 }
 
-func withProxy(handler *UploadAssetHandler, otherMiddleware ...wish.Middleware) ssh.Option {
+func withProxy(handler *pgs.UploadAssetHandler, otherMiddleware ...wish.Middleware) ssh.Option {
 	return func(server *ssh.Server) error {
 		err := sftp.SSHOption(handler)(server)
 		if err != nil {
@@ -44,12 +45,12 @@ func withProxy(handler *UploadAssetHandler, otherMiddleware ...wish.Middleware) 
 	}
 }
 
-func StartMinimalSshServer(cfg *ConfigSite, killCh chan error) {
+func StartMinimalSshServer(cfg *pgs.ConfigSite, killCh chan error) {
 	logger := cfg.Logger
 	ctx := context.Background()
 	defer ctx.Done()
 	cacheClearingQueue := make(chan string, 100)
-	handler := NewUploadAssetHandler(cfg, cacheClearingQueue)
+	handler := pgs.NewUploadAssetHandler(cfg, cacheClearingQueue)
 
 	srv, err := wish.NewServer(
 		wish.WithAddress(fmt.Sprintf("%s:%s", cfg.SshHost, cfg.SshPort)),
@@ -62,7 +63,7 @@ func StartMinimalSshServer(cfg *ConfigSite, killCh chan error) {
 			}
 			// the ssh app uses `user_id` to determine the current user
 			// for the running session and is required
-			SetUserIdForSession(ctx, user.ID)
+			pgs.SetUserIdForSession(ctx, user.ID)
 			return true
 		}),
 		withProxy(handler),

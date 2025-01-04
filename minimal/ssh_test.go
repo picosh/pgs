@@ -1,4 +1,4 @@
-package pgs
+package minimal
 
 import (
 	"crypto/ed25519"
@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/picosh/pgs"
 	"github.com/picosh/pgs/db"
 	"github.com/picosh/pgs/db/memory"
 	"github.com/picosh/pgs/storage"
@@ -28,7 +29,7 @@ func TestSshServer(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	cfg := NewConfigSite(logger, dbpool, st)
+	cfg := pgs.NewConfigSite(logger, dbpool, st)
 	done := make(chan error)
 	go StartMinimalSshServer(cfg, done)
 	// Hack to wait for startup
@@ -158,7 +159,7 @@ func GenerateUser() UserSSH {
 	}
 }
 
-func WriteFileWithSftp(cfg *ConfigSite, conn *ssh.Client) (*os.FileInfo, error) {
+func WriteFileWithSftp(cfg *pgs.ConfigSite, conn *ssh.Client) (*os.FileInfo, error) {
 	// open an SFTP session over an existing ssh connection.
 	client, err := sftp.NewClient(conn)
 	if err != nil {

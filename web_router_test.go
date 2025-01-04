@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/picosh/pgs/db"
 	"github.com/picosh/pgs/db/memory"
 	"github.com/picosh/pgs/storage"
 	sst "github.com/picosh/pobj/storage"
@@ -25,7 +24,6 @@ type ApiExample struct {
 	status      int
 	contentType string
 
-	dbpool  db.DB
 	storage map[string]map[string]string
 }
 
@@ -62,7 +60,6 @@ func TestApiBasic(t *testing.T) {
 			status:      http.StatusOK,
 			contentType: "text/html",
 
-			dbpool: dbpool,
 			storage: map[string]map[string]string{
 				bucketName: {
 					"test/index.html": "hello world!",
@@ -76,7 +73,6 @@ func TestApiBasic(t *testing.T) {
 			status:      http.StatusOK,
 			contentType: "text/html",
 
-			dbpool: dbpool,
 			storage: map[string]map[string]string{
 				bucketName: {
 					"test/test.html": "hello world!",
@@ -90,7 +86,6 @@ func TestApiBasic(t *testing.T) {
 			status:      http.StatusMovedPermanently,
 			contentType: "text/html; charset=utf-8",
 
-			dbpool: dbpool,
 			storage: map[string]map[string]string{
 				bucketName: {
 					"test/subdir/index.html": "hello world!",
@@ -104,7 +99,6 @@ func TestApiBasic(t *testing.T) {
 			status:      http.StatusMovedPermanently,
 			contentType: "text/html; charset=utf-8",
 
-			dbpool: dbpool,
 			storage: map[string]map[string]string{
 				bucketName: {
 					"test/_redirects": "/anything /about.html 301",
@@ -119,7 +113,6 @@ func TestApiBasic(t *testing.T) {
 			status:      http.StatusOK,
 			contentType: "text/html",
 
-			dbpool: dbpool,
 			storage: map[string]map[string]string{
 				bucketName: {
 					"test/subdir/index.html": "hello world!",
@@ -133,7 +126,6 @@ func TestApiBasic(t *testing.T) {
 			status:      http.StatusOK,
 			contentType: "text/html",
 
-			dbpool: dbpool,
 			storage: map[string]map[string]string{
 				bucketName: {
 					"test/_redirects": "/* /index.html 200",
@@ -148,7 +140,6 @@ func TestApiBasic(t *testing.T) {
 			status:      http.StatusNotFound,
 			contentType: "text/plain; charset=utf-8",
 
-			dbpool: dbpool,
 			storage: map[string]map[string]string{
 				bucketName: {},
 			},
@@ -160,7 +151,6 @@ func TestApiBasic(t *testing.T) {
 			status:      http.StatusNotFound,
 			contentType: "text/html",
 
-			dbpool: dbpool,
 			storage: map[string]map[string]string{
 				bucketName: {
 					"test/404.html": "boom!",
@@ -174,7 +164,6 @@ func TestApiBasic(t *testing.T) {
 			status:      http.StatusOK,
 			contentType: "image/jpeg",
 
-			dbpool: dbpool,
 			storage: map[string]map[string]string{
 				bucketName: {
 					"test/profile.jpg": "image",
@@ -189,7 +178,6 @@ func TestApiBasic(t *testing.T) {
 			status:      http.StatusMovedPermanently,
 			contentType: "text/html; charset=utf-8",
 
-			dbpool: dbpool,
 			storage: map[string]map[string]string{
 				bucketName: {
 					"test/_redirects": "/anything /about.html 301",
@@ -207,7 +195,6 @@ func TestApiBasic(t *testing.T) {
 			status:      http.StatusNotModified,
 			contentType: "",
 
-			dbpool: dbpool,
 			storage: map[string]map[string]string{
 				bucketName: {
 					"test/test.html": "hello world!",
@@ -224,7 +211,6 @@ func TestApiBasic(t *testing.T) {
 			status:      http.StatusOK,
 			contentType: "text/html",
 
-			dbpool: dbpool,
 			storage: map[string]map[string]string{
 				bucketName: {
 					"test/test.html": "hello world!",
@@ -241,7 +227,6 @@ func TestApiBasic(t *testing.T) {
 			status:      http.StatusNotModified,
 			contentType: "",
 
-			dbpool: dbpool,
 			storage: map[string]map[string]string{
 				bucketName: {
 					"test/test.html": "hello world!",
@@ -258,7 +243,6 @@ func TestApiBasic(t *testing.T) {
 			status:      http.StatusOK,
 			contentType: "text/html",
 
-			dbpool: dbpool,
 			storage: map[string]map[string]string{
 				bucketName: {
 					"test/test.html": "hello world!",
@@ -277,7 +261,6 @@ func TestApiBasic(t *testing.T) {
 			status:      http.StatusNotModified,
 			contentType: "",
 
-			dbpool: dbpool,
 			storage: map[string]map[string]string{
 				bucketName: {
 					"test/test.html": "hello world!",
@@ -297,7 +280,7 @@ func TestApiBasic(t *testing.T) {
 			st, _ := storage.NewStorageMemory(tc.storage)
 			cfg := NewConfigSite(logger, dbpool, st)
 			cfg.Domain = "pgs.test"
-			router := NewWebRouter(cfg, cfg.Logger, tc.dbpool, st)
+			router := NewWebRouter(cfg)
 			router.ServeHTTP(responseRecorder, request)
 
 			if responseRecorder.Code != tc.status {
@@ -356,7 +339,6 @@ func TestImageManipulation(t *testing.T) {
 			status:      http.StatusOK,
 			contentType: "image/jpeg",
 
-			dbpool: dbpool,
 			storage: map[string]map[string]string{
 				bucketName: {
 					"test/app.jpg": "hello world!",
@@ -370,7 +352,6 @@ func TestImageManipulation(t *testing.T) {
 			status:      http.StatusOK,
 			contentType: "image/jpeg",
 
-			dbpool: dbpool,
 			storage: map[string]map[string]string{
 				bucketName: {
 					"test/subdir/app.jpg": "hello world!",
@@ -393,7 +374,7 @@ func TestImageManipulation(t *testing.T) {
 			}
 			cfg := NewConfigSite(logger, dbpool, st)
 			cfg.Domain = "pgs.test"
-			router := NewWebRouter(cfg, cfg.Logger, tc.dbpool, st)
+			router := NewWebRouter(cfg)
 			router.ServeHTTP(responseRecorder, request)
 
 			if responseRecorder.Code != tc.status {

@@ -7,6 +7,7 @@ import (
 	"github.com/picosh/pgs"
 	"github.com/picosh/pgs/db"
 	"github.com/picosh/pgs/db/memory"
+	"github.com/picosh/pgs/minimal"
 	"github.com/picosh/pgs/storage"
 )
 
@@ -31,8 +32,10 @@ func main() {
 
 	// noop
 	ch := make(chan error)
+	// start web server
+	go minimal.StartMinimalWebServer(cfg)
 	// start ssh server
-	pgs.StartMinimalSshServer(cfg, ch)
+	minimal.StartMinimalSshServer(cfg, ch)
 }
 
 func addPubkey(dbpool *memory.MemoryDB) {

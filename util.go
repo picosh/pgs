@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"text/template"
 
 	"github.com/charmbracelet/ssh"
 	"github.com/picosh/pgs/db"
@@ -62,21 +61,6 @@ func GetProjectFromSubdomain(subdomain string) (*SubdomainProps, error) {
 		props.ProjectName = props.Username
 	}
 	return props, nil
-}
-
-func RenderTemplate(cfg *ConfigSite, templates []string) (*template.Template, error) {
-	files := make([]string, len(templates))
-	copy(files, templates)
-	files = append(
-		files,
-		"html/base.layout.tmpl",
-	)
-
-	ts, err := template.New("base").ParseFiles(files...)
-	if err != nil {
-		return nil, err
-	}
-	return ts, nil
 }
 
 func LoggerWithUser(logger *slog.Logger, user *db.User) *slog.Logger {

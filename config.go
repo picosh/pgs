@@ -7,7 +7,6 @@ import (
 
 	"github.com/picosh/pgs/db"
 	"github.com/picosh/pgs/storage"
-	sst "github.com/picosh/pobj/storage"
 	"github.com/picosh/utils"
 )
 
@@ -33,7 +32,7 @@ type ConfigSite struct {
 	DB     db.DB
 	Logger *slog.Logger
 	// Where we store the static assets uploaded to our service.
-	Storage sst.ObjectStorage
+	Storage storage.StorageServe
 }
 
 func (c *ConfigSite) AssetURL(username, projectName, fpath string) string {

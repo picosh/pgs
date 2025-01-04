@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"path/filepath"
+	"slices"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/lipgloss/table"
@@ -425,10 +426,13 @@ func (c *Cmd) cache(projectName string) error {
 }
 
 func (c *Cmd) cacheAll() error {
-	/* isAdmin := c.Dbpool.HasFeatureForUser(c.User.ID, "admin")
-	if !isAdmin {
+	feature, err := c.Dbpool.FindFeature(c.User.ID)
+	if err != nil {
+		return err
+	}
+	if !slices.Contains(feature.Perms, "admin") {
 		return fmt.Errorf("must be admin to use this command")
-	}*/
+	}
 
 	c.Log.Info(
 		"admin running `cache-all` command",

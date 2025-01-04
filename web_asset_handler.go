@@ -43,14 +43,14 @@ func (h *ApiAssetHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	redirectFp, redirectInfo, err := h.Storage.GetObject(h.Bucket, filepath.Join(h.ProjectDir, "_redirects"))
 	if err == nil {
 		defer redirectFp.Close()
-		if redirectInfo != nil && redirectInfo.Size > h.Cfg.MaxSpecialFileSize {
-			errMsg := fmt.Sprintf("_redirects file is too large (%d > %d)", redirectInfo.Size, h.Cfg.MaxSpecialFileSize)
+		if redirectInfo != nil && redirectInfo.Size > h.MaxSpecialFileSize {
+			errMsg := fmt.Sprintf("_redirects file is too large (%d > %d)", redirectInfo.Size, h.MaxSpecialFileSize)
 			logger.Error(errMsg)
 			http.Error(w, errMsg, http.StatusInternalServerError)
 			return
 		}
 		buf := new(strings.Builder)
-		lr := io.LimitReader(redirectFp, h.Cfg.MaxSpecialFileSize)
+		lr := io.LimitReader(redirectFp, h.MaxSpecialFileSize)
 		_, err := io.Copy(buf, lr)
 		if err != nil {
 			logger.Error("io copy", "err", err.Error())
@@ -161,14 +161,14 @@ func (h *ApiAssetHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	headersFp, headersInfo, err := h.Storage.GetObject(h.Bucket, filepath.Join(h.ProjectDir, "_headers"))
 	if err == nil {
 		defer headersFp.Close()
-		if headersInfo != nil && headersInfo.Size > h.Cfg.MaxSpecialFileSize {
-			errMsg := fmt.Sprintf("_headers file is too large (%d > %d)", headersInfo.Size, h.Cfg.MaxSpecialFileSize)
+		if headersInfo != nil && headersInfo.Size > h.MaxSpecialFileSize {
+			errMsg := fmt.Sprintf("_headers file is too large (%d > %d)", headersInfo.Size, h.MaxSpecialFileSize)
 			logger.Error(errMsg)
 			http.Error(w, errMsg, http.StatusInternalServerError)
 			return
 		}
 		buf := new(strings.Builder)
-		lr := io.LimitReader(headersFp, h.Cfg.MaxSpecialFileSize)
+		lr := io.LimitReader(headersFp, h.MaxSpecialFileSize)
 		_, err := io.Copy(buf, lr)
 		if err != nil {
 			logger.Error("io copy", "err", err.Error())
