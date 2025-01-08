@@ -15,7 +15,7 @@ import (
 	"github.com/picosh/utils"
 )
 
-func projectTable(projects []*db.Project, width int) *table.Table {
+func projectTable(projects []db.Project, width int) *table.Table {
 	headers := []string{
 		"Name",
 		"Last Updated",
@@ -27,12 +27,12 @@ func projectTable(projects []*db.Project, width int) *table.Table {
 	data := [][]string{}
 	for _, project := range projects {
 		row := []string{
-			project.Name,
-			project.UpdatedAt.Format("2006-01-02 15:04:05"),
+			project.GetName(),
+			project.GetUpdatedAt().Format("2006-01-02 15:04:05"),
 		}
 		links := ""
-		if project.ProjectDir != project.Name {
-			links = project.ProjectDir
+		if project.GetProjectDir() != project.GetName() {
+			links = project.GetProjectDir()
 		}
 		row = append(row, links)
 		data = append(data, row)
@@ -109,7 +109,7 @@ func getHelpText(userName string, width int) string {
 }
 
 type Cmd struct {
-	User    *db.User
+	User    db.User
 	Session utils.CmdSession
 	Log     *slog.Logger
 	Store   sst.ObjectStorage
@@ -145,7 +145,7 @@ func (c *Cmd) notice() {
 }
 
 func (c *Cmd) RmProjectAssets(projectName string) error {
-	bucketName := GetAssetBucketName(c.User.ID)
+	bucketName := GetAssetBucketName(c.User.GetID())
 	bucket, err := c.Store.GetBucket(bucketName)
 	if err != nil {
 		return err
@@ -167,7 +167,7 @@ func (c *Cmd) RmProjectAssets(projectName string) error {
 		intent := fmt.Sprintf("deleted (%s)", file.Name())
 		c.Log.Info(
 			"attempting to delete file",
-			"user", c.User.Name,
+			"user", c.User.GetName(),
 			"bucket", bucket.Name,
 			"filename", file.Name(),
 		)
@@ -189,11 +189,11 @@ func (c *Cmd) RmProjectAssets(projectName string) error {
 }
 
 func (c *Cmd) help() {
-	c.output(getHelpText(c.User.Name, c.Width))
+	c.output(getHelpText(c.User.GetName(), c.Width))
 }
 
 func (c *Cmd) ls() error {
-	projects, err := c.Dbpool.FindProjectsByUser(c.User.ID)
+	projects, err := c.Dbpool.FindProjectsByUser(c.User.GetID())
 	if err != nil {
 		return err
 	}
@@ -209,56 +209,56 @@ func (c *Cmd) ls() error {
 }
 
 func (c *Cmd) unlink(projectName string) error {
-	c.Log.Info("user running `unlink` command", "user", c.User.Name, "project", projectName)
-	project, err := c.Dbpool.FindProjectByName(c.User.ID, projectName)
+	c.Log.Info("user running `unlink` command", "user", c.User.GetName(), "project", projectName)
+	project, err := c.Dbpool.FindProjectByName(c.User.GetID(), projectName)
 	if err != nil {
 		return errors.Join(err, fmt.Errorf("project (%s) does not exit", projectName))
 	}
 
-	err = c.Dbpool.LinkToProject(c.User.ID, project.ID, project.Name, c.Write)
+	err = c.Dbpool.LinkToProject(c.User.GetID(), project.GetID(), project.GetName(), c.Write)
 	if err != nil {
 		return err
 	}
-	c.output(fmt.Sprintf("(%s) unlinked", project.Name))
+	c.output(fmt.Sprintf("(%s) unlinked", project.GetName()))
 
 	return nil
 }
 
 func (c *Cmd) link(projectName, linkTo string) error {
-	c.Log.Info("user running `link` command", "user", c.User.Name, "project", projectName, "link", linkTo)
+	c.Log.Info("user running `link` command", "user", c.User.GetName(), "project", projectName, "link", linkTo)
 
 	projectDir := linkTo
-	_, err := c.Dbpool.FindProjectByName(c.User.ID, linkTo)
+	_, err := c.Dbpool.FindProjectByName(c.User.GetID(), linkTo)
 	if err != nil {
 		e := fmt.Errorf("(%s) project doesn't exist", linkTo)
 		return e
 	}
 
-	project, err := c.Dbpool.FindProjectByName(c.User.ID, projectName)
+	project, err := c.Dbpool.FindProjectByName(c.User.GetID(), projectName)
 	projectID := ""
 	if err == nil {
-		projectID = project.ID
-		c.Log.Info("user already has project, updating", "user", c.User.Name, "project", projectName)
-		err = c.Dbpool.LinkToProject(c.User.ID, project.ID, projectDir, c.Write)
+		projectID = project.GetID()
+		c.Log.Info("user already has project, updating", "user", c.User.GetName(), "project", projectName)
+		err = c.Dbpool.LinkToProject(c.User.GetID(), project.GetID(), projectDir, c.Write)
 		if err != nil {
 			return err
 		}
 	} else {
-		c.Log.Info("user has no project record, creating", "user", c.User.Name, "project", projectName)
+		c.Log.Info("user has no project record, creating", "user", c.User.GetName(), "project", projectName)
 		if !c.Write {
 			out := fmt.Sprintf("(%s) cannot create a new project without `--write` permission, aborting", projectName)
 			c.output(out)
 			return nil
 		}
-		id, err := c.Dbpool.InsertProject(c.User.ID, projectName, projectName)
+		id, err := c.Dbpool.InsertProject(c.User.GetID(), projectName, projectName)
 		if err != nil {
 			return err
 		}
 		projectID = id
 	}
 
-	c.Log.Info("user linking", "user", c.User.Name, "project", projectName, "projectDir", projectDir)
-	err = c.Dbpool.LinkToProject(c.User.ID, projectID, projectDir, c.Write)
+	c.Log.Info("user linking", "user", c.User.GetName(), "project", projectName, "projectDir", projectDir)
+	err = c.Dbpool.LinkToProject(c.User.GetID(), projectID, projectDir, c.Write)
 	if err != nil {
 		return err
 	}
@@ -277,7 +277,7 @@ func (c *Cmd) link(projectName, linkTo string) error {
 }
 
 func (c *Cmd) depends(projectName string) error {
-	projects, err := c.Dbpool.FindProjectLinks(c.User.ID, projectName)
+	projects, err := c.Dbpool.FindProjectLinks(c.User.GetID(), projectName)
 	if err != nil {
 		return err
 	}
@@ -297,7 +297,7 @@ func (c *Cmd) depends(projectName string) error {
 // delete all the projects and associated assets matching prefix
 // but keep the latest N records.
 func (c *Cmd) prune(prefix string, keepNumLatest int) error {
-	c.Log.Info("user running `clean` command", "user", c.User.Name, "prefix", prefix)
+	c.Log.Info("user running `clean` command", "user", c.User.GetName(), "prefix", prefix)
 	c.output(fmt.Sprintf("searching for projects that match prefix (%s) and are not linked to other projects", prefix))
 
 	if prefix == "" || prefix == "*" {
@@ -305,7 +305,7 @@ func (c *Cmd) prune(prefix string, keepNumLatest int) error {
 		return e
 	}
 
-	projects, err := c.Dbpool.FindProjectsByPrefix(c.User.ID, prefix)
+	projects, err := c.Dbpool.FindProjectsByPrefix(c.User.GetID(), prefix)
 	if err != nil {
 		return err
 	}
@@ -315,9 +315,9 @@ func (c *Cmd) prune(prefix string, keepNumLatest int) error {
 		return nil
 	}
 
-	rmProjects := []*db.Project{}
+	rmProjects := []db.Project{}
 	for _, project := range projects {
-		links, err := c.Dbpool.FindProjectLinks(c.User.ID, project.Name)
+		links, err := c.Dbpool.FindProjectLinks(c.User.GetID(), project.GetName())
 		if err != nil {
 			return err
 		}
@@ -325,7 +325,7 @@ func (c *Cmd) prune(prefix string, keepNumLatest int) error {
 		if len(links) == 0 {
 			rmProjects = append(rmProjects, project)
 		} else {
-			out := fmt.Sprintf("project (%s) has (%d) projects linked to it, cannot prune", project.Name, len(links))
+			out := fmt.Sprintf("project (%s) has (%d) projects linked to it, cannot prune", project.GetName(), len(links))
 			c.output(out)
 		}
 	}
@@ -346,19 +346,19 @@ func (c *Cmd) prune(prefix string, keepNumLatest int) error {
 	}
 
 	for _, project := range goodbye {
-		out := fmt.Sprintf("project (%s) is available to be pruned", project.Name)
+		out := fmt.Sprintf("project (%s) is available to be pruned", project.GetName())
 		c.output(out)
-		err = c.RmProjectAssets(project.Name)
+		err = c.RmProjectAssets(project.GetName())
 		if err != nil {
 			return err
 		}
 
-		out = fmt.Sprintf("(%s) removing", project.Name)
+		out = fmt.Sprintf("(%s) removing", project.GetName())
 		c.output(out)
 
 		if c.Write {
-			c.Log.Info("removing project", "project", project.Name)
-			err = c.Dbpool.RemoveProject(project.ID)
+			c.Log.Info("removing project", "project", project.GetName())
+			err = c.Dbpool.RemoveProject(project.GetID())
 			if err != nil {
 				return err
 			}
@@ -368,19 +368,19 @@ func (c *Cmd) prune(prefix string, keepNumLatest int) error {
 	c.output("\nsummary")
 	c.output("=======")
 	for _, project := range goodbye {
-		c.output(fmt.Sprintf("project (%s) removed", project.Name))
+		c.output(fmt.Sprintf("project (%s) removed", project.GetName()))
 	}
 
 	return nil
 }
 
 func (c *Cmd) rm(projectName string) error {
-	c.Log.Info("user running `rm` command", "user", c.User.Name, "project", projectName)
-	project, err := c.Dbpool.FindProjectByName(c.User.ID, projectName)
+	c.Log.Info("user running `rm` command", "user", c.User.GetName(), "project", projectName)
+	project, err := c.Dbpool.FindProjectByName(c.User.GetID(), projectName)
 	if err == nil {
-		c.Log.Info("found project, checking dependencies", "project", projectName, "projectID", project.ID)
+		c.Log.Info("found project, checking dependencies", "project", projectName, "projectID", project.GetID())
 
-		links, err := c.Dbpool.FindProjectLinks(c.User.ID, projectName)
+		links, err := c.Dbpool.FindProjectLinks(c.User.GetID(), projectName)
 		if err != nil {
 			return err
 		}
@@ -390,17 +390,17 @@ func (c *Cmd) rm(projectName string) error {
 			return e
 		}
 
-		out := fmt.Sprintf("(%s) removing", project.Name)
+		out := fmt.Sprintf("(%s) removing", project.GetName())
 		c.output(out)
 		if c.Write {
-			c.Log.Info("removing project", "project", project.Name)
-			err = c.Dbpool.RemoveProject(project.ID)
+			c.Log.Info("removing project", "project", project.GetName())
+			err = c.Dbpool.RemoveProject(project.GetID())
 			if err != nil {
 				return err
 			}
 		}
 	} else {
-		msg := fmt.Sprintf("(%s) project record not found for user (%s)", projectName, c.User.Name)
+		msg := fmt.Sprintf("(%s) project record not found for user (%s)", projectName, c.User.GetName())
 		c.output(msg)
 	}
 
@@ -411,7 +411,7 @@ func (c *Cmd) rm(projectName string) error {
 func (c *Cmd) cache(projectName string) error {
 	c.Log.Info(
 		"user running `cache` command",
-		"user", c.User.Name,
+		"user", c.User.GetName(),
 		"project", projectName,
 	)
 	c.output(fmt.Sprintf("clearing http cache for %s", projectName))
@@ -419,24 +419,24 @@ func (c *Cmd) cache(projectName string) error {
 	defer ctx.Done()
 	send := CreatePubCacheDrain(ctx, c.Log)
 	if c.Write {
-		surrogate := getSurrogateKey(c.User.Name, projectName)
+		surrogate := getSurrogateKey(c.User.GetName(), projectName)
 		return purgeCache(c.Cfg, send, surrogate)
 	}
 	return nil
 }
 
 func (c *Cmd) cacheAll() error {
-	feature, err := c.Dbpool.FindFeature(c.User.ID)
+	feature, err := c.Dbpool.FindFeature(c.User.GetID())
 	if err != nil {
 		return err
 	}
-	if !slices.Contains(feature.Perms, "admin") {
+	if !slices.Contains(feature.GetPerms(), "admin") {
 		return fmt.Errorf("must be admin to use this command")
 	}
 
 	c.Log.Info(
 		"admin running `cache-all` command",
-		"user", c.User.Name,
+		"user", c.User.GetName(),
 	)
 	c.output("clearing http cache for all sites")
 	if c.Write {

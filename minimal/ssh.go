@@ -63,7 +63,7 @@ func StartMinimalSshServer(cfg *pgs.ConfigSite, killCh chan error) {
 			}
 			// the ssh app uses `user_id` to determine the current user
 			// for the running session and is required
-			pgs.SetUserIdForSession(ctx, user.ID)
+			pgs.SetUserIdForSession(ctx, user.GetID())
 			return true
 		}),
 		withProxy(handler),

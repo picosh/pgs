@@ -10,9 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/picosh/pgs"
-	"github.com/picosh/pgs/db"
 	"github.com/picosh/pgs/db/memory"
 	"github.com/picosh/pgs/storage"
 	"github.com/picosh/utils"
@@ -37,11 +35,10 @@ func TestSshServer(t *testing.T) {
 
 	user := GenerateUser()
 	// add user's pubkey to the default test account
-	dbpool.Pubkeys = append(dbpool.Pubkeys, &db.PublicKey{
-		ID:     uuid.NewString(),
-		UserID: dbpool.Users[0].ID,
-		Key:    utils.KeyForKeyText(user.signer.PublicKey()),
-	})
+	dbpool.Pubkeys = append(dbpool.Pubkeys, memory.NewMemPublicKey(
+		dbpool.Users[0].GetID(),
+		utils.KeyForKeyText(user.signer.PublicKey()),
+	))
 
 	client, err := user.NewClient()
 	if err != nil {

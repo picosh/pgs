@@ -16,6 +16,7 @@ import (
 
 	"github.com/darkweak/souin/pkg/middleware"
 	"github.com/darkweak/storages/core"
+	"github.com/picosh/pgs/db"
 	"github.com/picosh/pgs/storage"
 	sst "github.com/picosh/pobj/storage"
 	"google.golang.org/protobuf/proto"
@@ -41,36 +42,29 @@ func GetCustomDomain(host string, prefix string) string {
 	return ""
 }
 
-type CachedHttp struct {
-	handler *middleware.SouinBaseHandler
-	routes  *WebRouter
-}
-
-func (c *CachedHttp) ServeHTTP(writer http.ResponseWriter, req *http.Request) {
-	err := c.handler.ServeHTTP(writer, req, func(w http.ResponseWriter, r *http.Request) error {
-		c.routes.ServeHTTP(w, r)
-		return nil
-	})
-	if err != nil {
-		c.routes.Logger.Error("serve http", "err", err)
-	}
-}
-
 type WebRouter struct {
-	*ConfigSite
+	DB         db.DB
+	Logger     *slog.Logger
+	Storage    storage.StorageServe
+	Domain     string
+	TxtPrefix  string
 	RootRouter *http.ServeMux
 	UserRouter *http.ServeMux
 }
 
-func NewWebRouter(cfg *ConfigSite) *WebRouter {
+func NewWebRouter(logger *slog.Logger, dbpool db.DB, storage storage.StorageServe, domain, txtPrefix string) *WebRouter {
 	router := &WebRouter{
-		ConfigSite: cfg,
+		Logger:    logger,
+		DB:        dbpool,
+		Storage:   storage,
+		Domain:    domain,
+		TxtPrefix: txtPrefix,
 	}
-	router.initRouters()
+	router.InitRouters()
 	return router
 }
 
-func (web *WebRouter) initRouters() {
+func (web *WebRouter) InitRouters() {
 	// ensure legacy router is disabled
 	// GODEBUG=httpmuxgo121=0
 
@@ -143,14 +137,14 @@ func (web *WebRouter) checkHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		logger = logger.With(
-			"user", u.Name,
+			"user", u.GetName(),
 			"project", props.ProjectName,
 		)
-		p, err := dbpool.FindProjectByName(u.ID, props.ProjectName)
+		p, err := dbpool.FindProjectByName(u.GetID(), props.ProjectName)
 		if err != nil {
 			logger.Error(
 				"could not find project for user",
-				"user", u.Name,
+				"user", u.GetName(),
 				"project", props.ProjectName,
 				"err", err.Error(),
 			)
@@ -288,33 +282,31 @@ func (web *WebRouter) ServeAsset(fname string, opts *storage.ImgProcessOpts, fro
 	}
 
 	logger = logger.With(
-		"userId", user.ID,
+		"userId", user.GetID(),
 	)
 
-	projectID := ""
 	// TODO: this could probably be cleaned up more
 	// imgs wont have a project directory
 	projectDir := ""
 	var bucket sst.Bucket
 	// imgs has a different bucket directory
 	if fromImgs {
-		bucket, err = web.Storage.GetBucket(GetImgsBucketName(user.ID))
+		bucket, err = web.Storage.GetBucket(GetImgsBucketName(user.GetID()))
 	} else {
-		bucket, err = web.Storage.GetBucket(GetAssetBucketName(user.ID))
-		project, err := web.DB.FindProjectByName(user.ID, props.ProjectName)
+		bucket, err = web.Storage.GetBucket(GetAssetBucketName(user.GetID()))
+		project, err := web.DB.FindProjectByName(user.GetID(), props.ProjectName)
 		if err != nil {
-			logger.Info("project not found")
-			http.Error(w, "project not found", http.StatusNotFound)
+			logger.Info("project not found", "project", props.ProjectName)
+			http.Error(w, fmt.Sprintf("project not found %s", props.ProjectName), http.StatusNotFound)
 			return
 		}
 
 		logger = logger.With(
-			"projectId", project.ID,
-			"project", project.Name,
+			"projectId", project.GetID(),
+			"project", project.GetName(),
 		)
 
-		projectID = project.ID
-		projectDir = project.ProjectDir
+		projectDir = project.GetProjectDir()
 	}
 
 	if err != nil {
@@ -323,18 +315,25 @@ func (web *WebRouter) ServeAsset(fname string, opts *storage.ImgProcessOpts, fro
 		return
 	}
 
+	feature, err := web.DB.FindFeature(user.GetID())
+	if err != nil {
+		logger.Info("feature not found")
+		http.Error(w, "feature not found", http.StatusNotFound)
+		return
+	}
+
 	asset := &ApiAssetHandler{
 		WebRouter: web,
 		Logger:    logger,
+		Feature:   feature,
 
 		Username:       props.Username,
-		UserID:         user.ID,
+		UserID:         user.GetID(),
 		Subdomain:      subdomain,
 		ProjectDir:     projectDir,
 		Filepath:       fname,
 		Bucket:         bucket,
 		ImgProcessOpts: opts,
-		ProjectID:      projectID,
 	}
 
 	asset.ServeHTTP(w, r)
@@ -375,61 +374,4 @@ func (web *WebRouter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	ctx = context.WithValue(ctx, CtxSubdomainKey{}, subdomain)
 	router.ServeHTTP(w, r.WithContext(ctx))
-}
-
-type CompatLogger struct {
-	logger *slog.Logger
-}
-
-func (cl *CompatLogger) marshall(int ...interface{}) string {
-	res := ""
-	for _, val := range int {
-		switch r := val.(type) {
-		case string:
-			res += " " + r
-		}
-	}
-	return res
-}
-func (cl *CompatLogger) DPanic(int ...interface{}) {
-	cl.logger.Error("panic", "output", cl.marshall(int))
-}
-func (cl *CompatLogger) DPanicf(st string, int ...interface{}) {
-	cl.logger.Error(fmt.Sprintf(st, int...))
-}
-func (cl *CompatLogger) Debug(int ...interface{}) {
-	cl.logger.Debug("debug", "output", cl.marshall(int))
-}
-func (cl *CompatLogger) Debugf(st string, int ...interface{}) {
-	cl.logger.Debug(fmt.Sprintf(st, int...))
-}
-func (cl *CompatLogger) Error(int ...interface{}) {
-	cl.logger.Error("error", "output", cl.marshall(int))
-}
-func (cl *CompatLogger) Errorf(st string, int ...interface{}) {
-	cl.logger.Error(fmt.Sprintf(st, int...))
-}
-func (cl *CompatLogger) Fatal(int ...interface{}) {
-	cl.logger.Error("fatal", "outpu", cl.marshall(int))
-}
-func (cl *CompatLogger) Fatalf(st string, int ...interface{}) {
-	cl.logger.Error(fmt.Sprintf(st, int...))
-}
-func (cl *CompatLogger) Info(int ...interface{}) {
-	cl.logger.Info("info", "output", cl.marshall(int))
-}
-func (cl *CompatLogger) Infof(st string, int ...interface{}) {
-	cl.logger.Info(fmt.Sprintf(st, int...))
-}
-func (cl *CompatLogger) Panic(int ...interface{}) {
-	cl.logger.Error("panic", "output", cl.marshall(int))
-}
-func (cl *CompatLogger) Panicf(st string, int ...interface{}) {
-	cl.logger.Error(fmt.Sprintf(st, int...))
-}
-func (cl *CompatLogger) Warn(int ...interface{}) {
-	cl.logger.Warn("warn", "output", cl.marshall(int))
-}
-func (cl *CompatLogger) Warnf(st string, int ...interface{}) {
-	cl.logger.Warn(fmt.Sprintf(st, int...))
 }

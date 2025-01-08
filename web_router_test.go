@@ -34,7 +34,7 @@ type PgsDb struct {
 func NewPgsDb(logger *slog.Logger) *PgsDb {
 	sb := memory.NewDBMemory(logger)
 	sb.SetupTestData()
-	_, err := sb.InsertProject(sb.Users[0].ID, "test", "test")
+	_, err := sb.InsertProject(sb.Users[0].GetID(), "test", "test")
 	if err != nil {
 		panic(err)
 	}
@@ -44,13 +44,13 @@ func NewPgsDb(logger *slog.Logger) *PgsDb {
 }
 
 func (p *PgsDb) mkpath(path string) string {
-	return fmt.Sprintf("https://%s-test.pgs.test%s", p.Users[0].Name, path)
+	return fmt.Sprintf("https://%s-test.pgs.test%s", p.Users[0].GetName(), path)
 }
 
 func TestApiBasic(t *testing.T) {
 	logger := slog.Default()
 	dbpool := NewPgsDb(logger)
-	bucketName := GetAssetBucketName(dbpool.Users[0].ID)
+	bucketName := GetAssetBucketName(dbpool.Users[0].GetID())
 
 	tt := []*ApiExample{
 		{
@@ -280,7 +280,7 @@ func TestApiBasic(t *testing.T) {
 			st, _ := storage.NewStorageMemory(tc.storage)
 			cfg := NewConfigSite(logger, dbpool, st)
 			cfg.Domain = "pgs.test"
-			router := NewWebRouter(cfg)
+			router := NewWebRouter(logger, dbpool, st, cfg.Domain, cfg.TxtPrefix)
 			router.ServeHTTP(responseRecorder, request)
 
 			if responseRecorder.Code != tc.status {
@@ -301,6 +301,10 @@ func TestApiBasic(t *testing.T) {
 				location, err := responseRecorder.Result().Location()
 				if err != nil {
 					t.Errorf("err: %s", err.Error())
+				}
+				if location == nil {
+					t.Error("no location header in response")
+					return
 				}
 				if tc.wantUrl != location.String() {
 					t.Errorf("Want '%s', got '%s'", tc.wantUrl, location.String())
@@ -329,7 +333,7 @@ func (s *ImageStorageMemory) ServeObject(bucket sst.Bucket, fpath string, opts *
 func TestImageManipulation(t *testing.T) {
 	logger := slog.Default()
 	dbpool := NewPgsDb(logger)
-	bucketName := GetAssetBucketName(dbpool.Users[0].ID)
+	bucketName := GetAssetBucketName(dbpool.Users[0].GetID())
 
 	tt := []ApiExample{
 		{
@@ -374,7 +378,7 @@ func TestImageManipulation(t *testing.T) {
 			}
 			cfg := NewConfigSite(logger, dbpool, st)
 			cfg.Domain = "pgs.test"
-			router := NewWebRouter(cfg)
+			router := NewWebRouter(logger, dbpool, st, cfg.Domain, cfg.TxtPrefix)
 			router.ServeHTTP(responseRecorder, request)
 
 			if responseRecorder.Code != tc.status {

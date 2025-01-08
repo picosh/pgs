@@ -3,9 +3,7 @@ package main
 import (
 	"log/slog"
 
-	"github.com/google/uuid"
 	"github.com/picosh/pgs"
-	"github.com/picosh/pgs/db"
 	"github.com/picosh/pgs/db/memory"
 	"github.com/picosh/pgs/minimal"
 	"github.com/picosh/pgs/storage"
@@ -39,11 +37,9 @@ func main() {
 }
 
 func addPubkey(dbpool *memory.MemoryDB) {
-	pk := &db.PublicKey{
-		ID:     uuid.NewString(),
-		UserID: dbpool.Users[0].ID,
-		Name:   "main",
-		Key:    "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHRRo6TbaxWiynXhSGiHAdM7ZQ1rGcZ8DEBOskE6l7vs",
-	}
+	pk := memory.NewMemPublicKey(
+		dbpool.Users[0].GetID(),
+		"ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHRRo6TbaxWiynXhSGiHAdM7ZQ1rGcZ8DEBOskE6l7vs",
+	)
 	dbpool.Pubkeys = append(dbpool.Pubkeys, pk)
 }

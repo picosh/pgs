@@ -47,16 +47,16 @@ func setDenylist(s ssh.Session, denylist string) {
 	s.Context().SetValue(ctxDenylistKey{}, &DenyList{Denylist: denylist})
 }
 
-func getProject(s ssh.Session) *db.Project {
+func getProject(s ssh.Session) db.Project {
 	v := s.Context().Value(ctxProjectKey{})
 	if v == nil {
 		return nil
 	}
-	project := s.Context().Value(ctxProjectKey{}).(*db.Project)
+	project := s.Context().Value(ctxProjectKey{}).(db.Project)
 	return project
 }
 
-func setProject(s ssh.Session, project *db.Project) {
+func setProject(s ssh.Session, project db.Project) {
 	s.Context().SetValue(ctxProjectKey{}, project)
 }
 
@@ -91,9 +91,9 @@ func shouldIgnoreFile(fp, ignoreStr string) bool {
 
 type FileData struct {
 	*sendutils.FileEntry
-	User     *db.User
+	User     db.User
 	Bucket   sst.Bucket
-	Project  *db.Project
+	Project  db.Project
 	DenyList string
 }
 
@@ -131,7 +131,7 @@ func (h *UploadAssetHandler) Read(s ssh.Session, entry *sendutils.FileEntry) (os
 		FModTime: time.Unix(entry.Mtime, 0),
 	}
 
-	bucket, err := h.Cfg.Storage.GetBucket(GetAssetBucketName(user.ID))
+	bucket, err := h.Cfg.Storage.GetBucket(GetAssetBucketName(user.GetID()))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -165,7 +165,7 @@ func (h *UploadAssetHandler) List(s ssh.Session, fpath string, isDir bool, recur
 
 	cleanFilename := fpath
 
-	bucketName := GetAssetBucketName(user.ID)
+	bucketName := GetAssetBucketName(user.GetID())
 	bucket, err := h.Cfg.Storage.GetBucket(bucketName)
 	if err != nil {
 		return fileList, err
@@ -210,16 +210,16 @@ func (h *UploadAssetHandler) Validate(s ssh.Session) error {
 		return err
 	}
 
-	featureFlag, err := h.Cfg.DB.FindFeature(user.ID)
+	featureFlag, err := h.Cfg.DB.FindFeature(user.GetID())
 	if err != nil {
 		return err
 	}
 
-	if !slices.Contains(featureFlag.Perms, "write") {
+	if !slices.Contains(featureFlag.GetPerms(), "write") {
 		return fmt.Errorf("you are not authorized to upload files")
 	}
 
-	assetBucket := GetAssetBucketName(user.ID)
+	assetBucket := GetAssetBucketName(user.GetID())
 	bucket, err := h.Cfg.Storage.UpsertBucket(assetBucket)
 	if err != nil {
 		return err
@@ -233,20 +233,20 @@ func (h *UploadAssetHandler) Validate(s ssh.Session) error {
 	s.Context().SetValue(ctxStorageSizeKey{}, totalStorageSize)
 	h.Cfg.Logger.Info(
 		"bucket size",
-		"user", user.Name,
+		"user", user.GetName(),
 		"bytes", totalStorageSize,
 	)
 
 	h.Cfg.Logger.Info(
 		"attempting to upload files",
-		"user", user.Name,
+		"user", user.GetName(),
 	)
 
 	return nil
 }
 
-func (h *UploadAssetHandler) findDenylist(bucket sst.Bucket, project *db.Project, logger *slog.Logger) (string, error) {
-	fp, _, err := h.Cfg.Storage.GetObject(bucket, filepath.Join(project.ProjectDir, "_pgs_ignore"))
+func (h *UploadAssetHandler) findDenylist(bucket sst.Bucket, project db.Project, logger *slog.Logger) (string, error) {
+	fp, _, err := h.Cfg.Storage.GetObject(bucket, filepath.Join(project.GetProjectDir(), "_pgs_ignore"))
 	if err != nil {
 		return "", fmt.Errorf("_pgs_ignore not found")
 	}
@@ -298,20 +298,20 @@ func (h *UploadAssetHandler) Write(s ssh.Session, entry *sendutils.FileEntry) (s
 
 	// find, create, or update project if we haven't already done it
 	if project == nil {
-		project, err = h.Cfg.DB.FindProjectByName(user.ID, projectName)
+		project, err = h.Cfg.DB.FindProjectByName(user.GetID(), projectName)
 		if err == nil {
-			err = h.Cfg.DB.UpdateProject(user.ID, projectName)
+			err = h.Cfg.DB.UpdateProject(user.GetID(), projectName)
 			if err != nil {
 				logger.Error("could not update project", "err", err.Error())
 				return "", err
 			}
 		} else {
-			_, err = h.Cfg.DB.InsertProject(user.ID, projectName, projectName)
+			_, err = h.Cfg.DB.InsertProject(user.GetID(), projectName, projectName)
 			if err != nil {
 				logger.Error("could not create project", "err", err.Error())
 				return "", err
 			}
-			project, err = h.Cfg.DB.FindProjectByName(user.ID, projectName)
+			project, err = h.Cfg.DB.FindProjectByName(user.GetID(), projectName)
 			if err != nil {
 				logger.Error("could not find project", "err", err.Error())
 				return "", err
@@ -330,7 +330,7 @@ func (h *UploadAssetHandler) Write(s ssh.Session, entry *sendutils.FileEntry) (s
 		return "", err
 	}
 
-	featureFlag, err := h.Cfg.DB.FindFeature(user.ID)
+	featureFlag, err := h.Cfg.DB.FindFeature(user.GetID())
 	if err != nil {
 		return "", err
 	}
@@ -371,8 +371,8 @@ func (h *UploadAssetHandler) Write(s ssh.Session, entry *sendutils.FileEntry) (s
 	//   check filesize constraints is to try and upload the file to s3
 	//	 with a specialized reader that raises an error if the filesize limit
 	//	 has been reached
-	storageMax := featureFlag.StorageMax
-	fileMax := featureFlag.FileMax
+	storageMax := featureFlag.GetStorageMax()
+	fileMax := featureFlag.GetFileMax()
 	curStorageSize := getStorageSize(s)
 	remaining := int64(storageMax) - int64(curStorageSize)
 	sizeRemaining := min(remaining+curFileSize, fileMax)
@@ -387,7 +387,7 @@ func (h *UploadAssetHandler) Write(s ssh.Session, entry *sendutils.FileEntry) (s
 		"sizeRemaining", sizeRemaining,
 	)
 
-	specialFileMax := featureFlag.SpecialFileMax
+	specialFileMax := featureFlag.GetSpecialFileMax()
 	if isSpecialFile(entry) {
 		sizeRemaining = min(sizeRemaining, specialFileMax)
 	}
@@ -413,12 +413,12 @@ func (h *UploadAssetHandler) Write(s ssh.Session, entry *sendutils.FileEntry) (s
 	nextStorageSize := incrementStorageSize(s, deltaFileSize)
 
 	url := h.Cfg.AssetURL(
-		user.Name,
+		user.GetName(),
 		projectName,
 		strings.Replace(data.Filepath, "/"+projectName+"/", "", 1),
 	)
 
-	maxSize := int(featureFlag.StorageMax)
+	maxSize := int(featureFlag.GetStorageMax())
 	str := fmt.Sprintf(
 		"%s (space: %.2f/%.2fGB, %.2f%%)",
 		url,
@@ -427,7 +427,7 @@ func (h *UploadAssetHandler) Write(s ssh.Session, entry *sendutils.FileEntry) (s
 		(float32(nextStorageSize)/float32(maxSize))*100,
 	)
 
-	surrogate := getSurrogateKey(user.Name, projectName)
+	surrogate := getSurrogateKey(user.GetName(), projectName)
 	h.CacheClearingQueue <- surrogate
 
 	return str, nil
@@ -502,7 +502,7 @@ func (h *UploadAssetHandler) Delete(s ssh.Session, entry *sendutils.FileEntry) e
 	}
 	err = h.Cfg.Storage.DeleteObject(bucket, assetFilepath)
 
-	surrogate := getSurrogateKey(user.Name, projectName)
+	surrogate := getSurrogateKey(user.GetName(), projectName)
 	h.CacheClearingQueue <- surrogate
 
 	return err

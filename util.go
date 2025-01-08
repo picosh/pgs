@@ -63,8 +63,8 @@ func GetProjectFromSubdomain(subdomain string) (*SubdomainProps, error) {
 	return props, nil
 }
 
-func LoggerWithUser(logger *slog.Logger, user *db.User) *slog.Logger {
-	return logger.With("user", user.Name, "userId", user.ID)
+func LoggerWithUser(logger *slog.Logger, user db.User) *slog.Logger {
+	return logger.With("user", user.GetName(), "userId", user.GetID())
 }
 
 // The ssh app uses `user_id` to determine the current user

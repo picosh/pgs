@@ -30,7 +30,7 @@ func flagCheck(cmd *flag.FlagSet, posArg string, cmdArgs []string) bool {
 	return true
 }
 
-func getUser(s ssh.Session, dbpool db.DB) (*db.User, error) {
+func getUser(s ssh.Session, dbpool db.DB) (db.User, error) {
 	if s.PublicKey() == nil {
 		return nil, fmt.Errorf("key not found")
 	}
@@ -42,7 +42,7 @@ func getUser(s ssh.Session, dbpool db.DB) (*db.User, error) {
 		return nil, err
 	}
 
-	if user.Name == "" {
+	if user.GetName() == "" {
 		return nil, fmt.Errorf("must have username set")
 	}
 

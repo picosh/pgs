@@ -9,7 +9,7 @@ import (
 
 func StartMinimalWebServer(cfg *pgs.ConfigSite) {
 	logger := cfg.Logger
-	routes := pgs.NewWebRouter(cfg)
+	routes := pgs.NewWebRouter(logger, cfg.DB, cfg.Storage, cfg.Domain, cfg.TxtPrefix)
 
 	portStr := fmt.Sprintf(":%s", cfg.WebPort)
 	logger.Info(

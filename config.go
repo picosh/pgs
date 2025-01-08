@@ -78,16 +78,6 @@ func NewConfigSite(logger *slog.Logger, dbpool db.DB, st storage.StorageServe) *
 	sshHost := utils.GetEnv("PGS_SSH_HOST", "0.0.0.0")
 	sshPort := utils.GetEnv("PGS_SSH_PORT", "2222")
 
-	/*minioURL := utils.GetEnv("MINIO_URL", "")
-	minioUser := utils.GetEnv("MINIO_ROOT_USER", "")
-	minioPass := utils.GetEnv("MINIO_ROOT_PASSWORD", "")
-	var st storage.StorageServe
-	if minioURL == "" {
-		st, err = storage.NewStorageFS(storageDir)
-	} else {
-		st, err = storage.NewStorageMinio(minioURL, minioUser, minioPass)
-	}*/
-
 	cfg := ConfigSite{
 		CacheControl:       cacheControl,
 		CacheTTL:           cacheTTL,

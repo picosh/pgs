@@ -14,6 +14,7 @@ import (
 	"net/http/httputil"
 	_ "net/http/pprof"
 
+	"github.com/picosh/pgs/db"
 	"github.com/picosh/pgs/storage"
 	sst "github.com/picosh/pobj/storage"
 )
@@ -22,14 +23,15 @@ type ApiAssetHandler struct {
 	*WebRouter
 	Logger *slog.Logger
 
-	Username       string
-	UserID         string
+	UserID     string
+	Username   string
+	ProjectDir string
+	Feature    db.Feature
+
 	Subdomain      string
-	ProjectDir     string
 	Filepath       string
 	Bucket         sst.Bucket
 	ImgProcessOpts *storage.ImgProcessOpts
-	ProjectID      string
 }
 
 func hasProtocol(url string) bool {
@@ -43,14 +45,14 @@ func (h *ApiAssetHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	redirectFp, redirectInfo, err := h.Storage.GetObject(h.Bucket, filepath.Join(h.ProjectDir, "_redirects"))
 	if err == nil {
 		defer redirectFp.Close()
-		if redirectInfo != nil && redirectInfo.Size > h.MaxSpecialFileSize {
-			errMsg := fmt.Sprintf("_redirects file is too large (%d > %d)", redirectInfo.Size, h.MaxSpecialFileSize)
+		if redirectInfo != nil && redirectInfo.Size > h.Feature.GetSpecialFileMax() {
+			errMsg := fmt.Sprintf("_redirects file is too large (%d > %d)", redirectInfo.Size, h.Feature.GetSpecialFileMax())
 			logger.Error(errMsg)
 			http.Error(w, errMsg, http.StatusInternalServerError)
 			return
 		}
 		buf := new(strings.Builder)
-		lr := io.LimitReader(redirectFp, h.MaxSpecialFileSize)
+		lr := io.LimitReader(redirectFp, h.Feature.GetSpecialFileMax())
 		_, err := io.Copy(buf, lr)
 		if err != nil {
 			logger.Error("io copy", "err", err.Error())
@@ -161,14 +163,14 @@ func (h *ApiAssetHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	headersFp, headersInfo, err := h.Storage.GetObject(h.Bucket, filepath.Join(h.ProjectDir, "_headers"))
 	if err == nil {
 		defer headersFp.Close()
-		if headersInfo != nil && headersInfo.Size > h.MaxSpecialFileSize {
-			errMsg := fmt.Sprintf("_headers file is too large (%d > %d)", headersInfo.Size, h.MaxSpecialFileSize)
+		if headersInfo != nil && headersInfo.Size > h.Feature.GetSpecialFileMax() {
+			errMsg := fmt.Sprintf("_headers file is too large (%d > %d)", headersInfo.Size, h.Feature.GetSpecialFileMax())
 			logger.Error(errMsg)
 			http.Error(w, errMsg, http.StatusInternalServerError)
 			return
 		}
 		buf := new(strings.Builder)
-		lr := io.LimitReader(headersFp, h.MaxSpecialFileSize)
+		lr := io.LimitReader(headersFp, h.Feature.GetSpecialFileMax())
 		_, err := io.Copy(buf, lr)
 		if err != nil {
 			logger.Error("io copy", "err", err.Error())
