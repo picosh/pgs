@@ -213,6 +213,42 @@ func TestCalcRoutes(t *testing.T) {
 			},
 		},
 		{
+			Name: "redirect-root-full-url",
+			Actual: calcRoutes(
+				"test",
+				"/",
+				[]*RedirectRule{
+					{
+						From:   "/*",
+						To:     "https://pico.sh",
+						Status: 301,
+					},
+				},
+			),
+			Expected: []*HttpReply{
+				{Filepath: "test/index.html", Status: 200},
+				{Filepath: "https://pico.sh", Status: 301},
+			},
+		},
+		{
+			Name: "redirect-empty-route-full-url",
+			Actual: calcRoutes(
+				"test",
+				"",
+				[]*RedirectRule{
+					{
+						From:   "/*",
+						To:     "https://pico.sh",
+						Status: 301,
+					},
+				},
+			),
+			Expected: []*HttpReply{
+				{Filepath: "test/index.html", Status: 200},
+				{Filepath: "https://pico.sh", Status: 301},
+			},
+		},
+		{
 			Name: "redirect-full-url-directory",
 			Actual: calcRoutes(
 				"test",
@@ -529,6 +565,46 @@ func TestCalcRoutes(t *testing.T) {
 				{Filepath: "public/.well-known/nodeinfo", Status: 200},
 				{Filepath: "public/.well-known/nodeinfo.html", Status: 200},
 				{Filepath: "https://some.dev/.well-known/nodeinfo", Status: 301},
+			},
+		},
+		{
+			Name: "non-match-dont-redirect",
+			Actual: calcRoutes(
+				"public",
+				"/scripts/asd",
+				[]*RedirectRule{
+					{
+						From:   "/concat/*",
+						To:     "/scripts/:splat",
+						Status: 301,
+					},
+				},
+			),
+			Expected: []*HttpReply{
+				{Filepath: "public/scripts/asd", Status: 200},
+				{Filepath: "public/scripts/asd.html", Status: 200},
+				{Filepath: "/scripts/asd/", Status: 301},
+				{Filepath: "public/404.html", Status: 404},
+			},
+		},
+		{
+			Name: "implicit-prefix-slash-redirect",
+			Actual: calcRoutes(
+				"public",
+				"software/scripts",
+				[]*RedirectRule{
+					{
+						From:   "/software/concat/*",
+						To:     "/software/scripts/:splat",
+						Status: 301,
+					},
+				},
+			),
+			Expected: []*HttpReply{
+				{Filepath: "public/software/scripts", Status: 200},
+				{Filepath: "public/software/scripts.html", Status: 200},
+				{Filepath: "/software/scripts/", Status: 301},
+				{Filepath: "public/404.html", Status: 404},
 			},
 		},
 		{

@@ -88,6 +88,14 @@ func correlatePlaceholder(orig, pattern string) (string, string) {
 			nextList = append(nextList, strings.ReplaceAll(item, "*", "(.*)"))
 		} else if item == origList[idx] {
 			nextList = append(nextList, origList[idx])
+		} else {
+			nextList = append(nextList, item)
+			// if we are on the last pattern item then we need to ensure
+			// it matches the end of string so partial matches are not counted
+			if idx == len(patternList)-1 {
+				// regex end of string matcher
+				nextList = append(nextList, "$")
+			}
 		}
 	}
 
@@ -185,8 +193,11 @@ func genRedirectRoute(actual string, fromStr string, to string) string {
 
 func calcRoutes(projectName, fp string, userRedirects []*RedirectRule) []*HttpReply {
 	rts := []*HttpReply{}
+	if !strings.HasPrefix(fp, "/") {
+		fp = "/" + fp
+	}
 	// add route as-is without expansion
-	if fp != "" && !strings.HasSuffix(fp, "/") {
+	if !strings.HasSuffix(fp, "/") {
 		defRoute := GetAssetFileName(&utils.FileEntry{
 			Filepath: filepath.Join(projectName, fp),
 		})
@@ -262,7 +273,7 @@ func calcRoutes(projectName, fp string, userRedirects []*RedirectRule) []*HttpRe
 	// we might have a directory so add a trailing slash with a 301
 	// we can't check for file extention because route could have a dot
 	// and ext parsing gets confused
-	if fp != "" && !strings.HasSuffix(fp, "/") {
+	if !strings.HasSuffix(fp, "/") {
 		redirectRoute := GetAssetFileName(&utils.FileEntry{
 			Filepath: fp + "/",
 		})
