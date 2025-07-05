@@ -8,7 +8,6 @@
 - Github Action
 - Automatic TLS for all projects
 - Promotion and rollback support
-- Site analytics
 - Custom domains for projects
 - Custom Redirects & Rewrites
 - Custom Headers
