@@ -1,0 +1,25 @@
+services:
+  pgs:
+    image: ghcr.io/picosh/pgs:latest
+    restart: unless-stopped
+    ports:
+      - 2222:2222
+      - 3000:3000
+    volumes:
+      - $PWD/data:/app/data
+    env_file:
+      - .env
+  caddy:
+    image: caddy:latest
+    restart: unless-stopped
+    volumes:
+      - $PWD/conf:/etc/caddy
+      - caddy_data:/data
+      - caddy_config:/config
+  imgproxy:
+    image: darthsim/imgproxy:latest
+    restart: unless-stopped
+
+volumes:
+  caddy_data:
+  caddy_config:
