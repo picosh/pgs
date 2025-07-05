@@ -1,7 +1,8 @@
 # pgs - self host
 
 > [!IMPORTANT]
-> We provide a fully managed service [pgs.sh](https://pgs.sh).
+> We provide a fully managed version of this service at
+> [pgs.sh](https://pgs.sh).
 
 ## features
 
@@ -52,7 +53,8 @@ IMGPROXY_SALT=6465616462656566 # deadbeef
 This is the only recommended way to self-host `pgs`.
 
 > [!IMPORTANT]
-> Use our [docker-compose.yml](./docker-compose.yml) file
+> We recommend using `docker-compose`: See our
+> [docker-compose.yml](./docker-compose.yml).
 
 ```bash
 docker run -d \
@@ -93,7 +95,7 @@ example, add entries to `/etc/hosts`:
 ## usage
 
 > [!IMPORTANT]
-> So our managed service docs for more details on usage:
+> For more in-depth usage, go to our managed service docs:
 > [docs](https://pico.sh/pgs)
 
 ```bash
