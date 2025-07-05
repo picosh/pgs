@@ -1,8 +1,6 @@
 # pgs - self host
 
-> [!IMPORTANT]
-> We provide a fully managed version of this service at
-> [pgs.sh](https://pgs.sh).
+A self hostable, static site hosting service using `ssh`.
 
 ## features
 
@@ -19,6 +17,16 @@
 - [HTTP Caching (RFC-7234)](https://datatracker.ietf.org/doc/html/rfc7234)
 - Image manipulation API
 - Prometheus integration
+
+> [!IMPORTANT]
+> We provide a fully managed version of this service at
+> [pgs.sh](https://pgs.sh).
+
+## deps
+
+- `docker`
+- `caddy` (on-demand tls)
+- `imgproxy` (image manipulation api, optional)
 
 ## setup
 
@@ -54,7 +62,7 @@ This is the only recommended way to self-host `pgs`.
 
 > [!IMPORTANT]
 > We recommend using `docker-compose`: See our
-> [docker-compose.yml](./docker-compose.yml).
+> [docker-compose.yml](./docker-compose.yml) file.
 
 ```bash
 docker run -d \
@@ -95,8 +103,7 @@ example, add entries to `/etc/hosts`:
 ## usage
 
 > [!IMPORTANT]
-> For more in-depth usage, go to our managed service docs:
-> [docs](https://pico.sh/pgs)
+> For more in-depth usage, go to our managed service [docs](https://pico.sh/pgs)
 
 ```bash
 rsync -e "ssh -p 2222" -rv ./public/ localhost:/project
