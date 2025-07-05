@@ -1,5 +1,8 @@
 # pgs - self host
 
+> [!IMPORTANT]
+> We provide a fully managed service [pgs.sh](https://pgs.sh).
+
 ## features
 
 - Fully manage static sites using `ssh`
@@ -48,6 +51,7 @@ IMGPROXY_SALT=6465616462656566 # deadbeef
 
 This is the only recommended way to self-host `pgs`.
 
+> [!IMPORTANT]
 > Use our [docker-compose.yml](./docker-compose.yml) file
 
 ```bash
@@ -87,6 +91,10 @@ example, add entries to `/etc/hosts`:
 ```
 
 ## usage
+
+> [!IMPORTANT]
+> So our managed service docs for more details on usage:
+> [docs](https://pico.sh/pgs)
 
 ```bash
 rsync -e "ssh -p 2222" -rv ./public/ localhost:/project
