@@ -38,10 +38,12 @@ PGS_DOMAIN=pgs.test # this should be your custom domain
 FS_STORAGE_DIR=./data/storage
 DATABASE_URL=./data/pgs.sqlite3
 PGS_PROTOCOL=http
+STORAGE_ADAPTER=fs
+
+# the rest is optional
 
 # defaults
 USE_IMGPROXY=0
-STORAGE_ADAPTER=fs
 PGS_WEB_PORT=3000
 PGS_SSH_PORT=2222
 PGS_PROTOCOL=https
@@ -54,6 +56,9 @@ IMGPROXY_URL=http://imgproxy:8080
 IMGPROXY_ALLOWED_SOURCES=local://
 IMGPROXY_KEY=6465616462656566 # deadbeef
 IMGPROXY_SALT=6465616462656566 # deadbeef
+
+# cloudflare
+CF_API_TOKEN=xxx
 ```
 
 ## docker
@@ -73,6 +78,22 @@ docker run -d \
   ghcr.io/picosh/pgs:latest
 ```
 
+## docker compose
+
+Our example `docker-compose` file assumes your DNS is managed by Cloudflare.
+If you want to verify your domains using some other caddy provider then go to
+the caddy docs to learn how to do that: https://github.com/caddy-dns
+
+There are also a couple of important environment variables that are required
+inside our Caddyfile.
+
+```bash
+docker compose up -d
+```
+
+The default port for the SSH app is `2222` but you are free to change it to
+whatever you want, including `22`.
+
 ## setup user account
 
 Copy your public key:
@@ -83,6 +104,10 @@ cat ~/.ssh/id_ed25519.pub
 ```
 
 Create your user account:
+
+```bash
+sqlite3 ./data/pgs.sqlite3
+```
 
 ```sql
 INSERT INTO app_users (name) VALUES ('erock') RETURNING id; -- id: 1

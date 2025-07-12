@@ -10,12 +10,19 @@ services:
     env_file:
       - .env
   caddy:
-    image: caddy:latest
+    image: iarekylew00t/caddy-cloudflare:latest
     restart: unless-stopped
     volumes:
       - $PWD/conf:/etc/caddy
       - caddy_data:/data
       - caddy_config:/config
+    environment:
+      APP_DOMAIN: pgs.test
+      APP_EMAIL: webmaster@pgs.test
+      CF_API_TOKEN: $CF_API_TOKEN
+    ports:
+      - 80:80
+      - 443:443
   imgproxy:
     image: darthsim/imgproxy:latest
     restart: unless-stopped
