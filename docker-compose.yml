@@ -21,8 +21,8 @@ services:
       APP_EMAIL: webmaster@pgs.test
       CF_API_TOKEN: $CF_API_TOKEN
     ports:
-      - 80:80
-      - 443:443
+      # - 80:80
+      # - 443:443
   imgproxy:
     image: darthsim/imgproxy:latest
     restart: unless-stopped

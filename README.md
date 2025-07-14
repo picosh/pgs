@@ -1,4 +1,4 @@
-# pgs - self host
+# pgs - self-host
 
 A self hostable, static site hosting service using `ssh`.
 
@@ -103,16 +103,16 @@ cat ~/.ssh/id_ed25519.pub
 # pubkey: zzz
 ```
 
-Create your user account:
+After the `pgs` container is running, create your user account:
 
 ```bash
-sqlite3 ./data/pgs.sqlite3
+docker compose exec -T pgs /app/pgs init {username} zzz
 ```
 
-```sql
-INSERT INTO app_users (name) VALUES ('erock') RETURNING id; -- id: 1
-INSERT INTO public_keys (user_id, name, public_key) VALUES (1, 'main', 'zzz');
-INSERT INTO feature_flags (user_id, name, expires_at) VALUES (1, 'plus', '2100-01-01');
+Now you should be able to copy files to the SSH app!
+
+```bash
+rsync -rv --delete ./public/ my.site:/about/
 ```
 
 ## local dev
